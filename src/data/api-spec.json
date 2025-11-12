@@ -113,6 +113,16 @@
           "errorCode": "INSUFFICIENT_INGREDIENTS",
           "timestamp": "2025-08-07T12:30:00.123Z"
         }
+      },
+      "429": {
+        "description": "요청 한도 초과",
+        "errorCode": "RATE_LIMIT_EXCEEDED",
+        "example": {
+          "status": "ERROR",
+          "message": "요청 한도를 초과했습니다",
+          "errorCode": "RATE_LIMIT_EXCEEDED",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
       }
     },
     "responseBody": [
@@ -179,6 +189,11 @@
         "ErrorCode": "MENU_NOT_FOUND",
         "HttpStatus": 404,
         "Description": "존재하지 않는 메뉴"
+      },
+      {
+        "ErrorCode": "RATE_LIMIT_EXCEEDED",
+        "HttpStatus": 429,
+        "Description": "요청 한도 초과"
       }
     ]
   },

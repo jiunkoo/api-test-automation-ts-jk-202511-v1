@@ -505,4 +505,132 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).not.toHaveBeenCalled();
     }
   );
+
+  it("[타임아웃] 요청 타임아웃 시 에러 처리", async () => {
+    // given
+    const payload = {
+      menuId: "menu_001",
+      quantity: 2,
+      shopId: "shop_001",
+      memberNo: "member_123",
+    };
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const timeoutError = {
+      code: "ECONNABORTED",
+      message: "timeout of 5000ms exceeded",
+      isAxiosError: true,
+    };
+    mockedAxios.post.mockRejectedValueOnce(timeoutError as AxiosError);
+
+    // when
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.code).toBe("ECONNABORTED");
+  });
+
+  it("[네트워크 에러] 네트워크 연결 실패 시 에러 처리", async () => {
+    // given
+    const payload = {
+      menuId: "menu_001",
+      quantity: 2,
+      shopId: "shop_001",
+      memberNo: "member_123",
+    };
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const networkError = {
+      code: "ENETUNREACH",
+      message: "Network unreachable",
+      isAxiosError: true,
+    };
+    mockedAxios.post.mockRejectedValueOnce(networkError as AxiosError);
+
+    // when
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.code).toBe("ENETUNREACH");
+  });
+
+  it("[429][실패] 요청 한도 초과 - Retry-After 헤더 확인", async () => {
+    // given
+    const payload = {
+      menuId: "menu_001",
+      quantity: 2,
+      shopId: "shop_001",
+      memberNo: "member_123",
+    };
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const errorResponse = spec.responses["429"].example;
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        status: 429,
+        statusText: "Too Many Requests",
+        headers: {
+          "retry-after": "60",
+        },
+        data: errorResponse,
+      },
+      code: "ERR_BAD_RESPONSE",
+      name: "AxiosError",
+      message: "Request failed with status code 429",
+    } as unknown as AxiosError);
+
+    // when
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(429);
+    expect(error?.response?.data).toEqual(errorResponse);
+    expect(error?.response?.headers["retry-after"]).toBe("60");
+  });
 });
