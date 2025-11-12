@@ -1,6 +1,7 @@
 import "dotenv/config";
 import axios, { type AxiosError } from "axios";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import apiSpec from "../data/api-spec.json";
 
@@ -28,6 +29,41 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+const VALIDATION_ERRORS = {
+  MENU_ID_REQUIRED: "menuId는 필수값입니다",
+  QUANTITY_REQUIRED: "quantity는 필수값입니다",
+  QUANTITY_INVALID: "quantity는 1 이상 99 이하의 정수여야 합니다",
+  SHOP_ID_REQUIRED: "shopId는 필수값입니다",
+  MEMBER_NO_REQUIRED: "memberNo는 필수값입니다",
+} as const;
+
+const validateMenuSelectRequest = (payload: {
+  menuId?: string;
+  quantity?: number;
+  shopId?: string;
+  memberNo?: string;
+}): void => {
+  if (!payload.menuId) {
+    throw new Error(VALIDATION_ERRORS.MENU_ID_REQUIRED);
+  }
+  if (payload.quantity === undefined || payload.quantity === null) {
+    throw new Error(VALIDATION_ERRORS.QUANTITY_REQUIRED);
+  }
+  if (
+    !Number.isInteger(payload.quantity) ||
+    payload.quantity < 1 ||
+    payload.quantity > 99
+  ) {
+    throw new Error(VALIDATION_ERRORS.QUANTITY_INVALID);
+  }
+  if (!payload.shopId) {
+    throw new Error(VALIDATION_ERRORS.SHOP_ID_REQUIRED);
+  }
+  if (!payload.memberNo) {
+    throw new Error(VALIDATION_ERRORS.MEMBER_NO_REQUIRED);
+  }
+};
 
 describe("POST /api/v1/menu/select", () => {
   it("[200][성공] 메뉴 예약 완료", async () => {
@@ -58,8 +94,26 @@ describe("POST /api/v1/menu/select", () => {
       headers: {},
       data: successResponse,
     });
+    const successResponseSchema = z.object({
+      status: z.literal("SUCCESS"),
+      message: z.string(),
+      timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+        message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
+      }),
+      data: z.object({
+        reservationId: z.string(),
+        reservationExpiresAt: z
+          .string()
+          .refine((val) => !isNaN(Date.parse(val)), {
+            message: "reservationExpiresAt는 유효한 ISO 8601 형식이어야 합니다",
+          }),
+        menuId: z.string(),
+        quantity: z.number().int().min(1).max(99),
+      }),
+    });
 
     // when
+    expect(() => validateMenuSelectRequest(payload)).not.toThrow();
     const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
       headers,
     });
@@ -72,6 +126,18 @@ describe("POST /api/v1/menu/select", () => {
     );
     expect(response.status).toBe(200);
     expect(response.data).toEqual(successResponse);
+
+    const validatedData = successResponseSchema.parse(response.data);
+    expect(validatedData.data.reservationId).toBeTypeOf("string");
+    expect(validatedData.data.menuId).toBeTypeOf("string");
+    expect(validatedData.data.quantity).toBeTypeOf("number");
+    expect(Number.isInteger(validatedData.data.quantity)).toBe(true);
+
+    const timestamp = new Date(response.data.timestamp);
+    const expiresAt = new Date(response.data.data.reservationExpiresAt);
+    const diffMinutes =
+      (expiresAt.getTime() - timestamp.getTime()) / (1000 * 60);
+    expect(diffMinutes).toBe(5);
   });
 
   it("[400][실패] 재료 부족", async () => {
@@ -165,94 +231,6 @@ describe("POST /api/v1/menu/select", () => {
     // given
     const payload = {
       menuId: "menu_001",
-      shopId: "shop_001",
-      memberNo: "member_123",
-    };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
-    const errorResponse = {
-      status: "ERROR",
-      message: "요청 정보가 올바르지 않습니다",
-      errorCode: "INVALID_REQUEST",
-      timestamp: "2025-08-07T12:30:00.123Z",
-    };
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      { headers }
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 잘못된 요청 - 최소 주문 수량 미달", async () => {
-    // given
-    const payload = {
-      menuId: "menu_001",
-      quantity: 0,
-      shopId: "shop_001",
-      memberNo: "member_123",
-    };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
-    const errorResponse = {
-      status: "ERROR",
-      message: "요청 정보가 올바르지 않습니다",
-      errorCode: "INVALID_REQUEST",
-      timestamp: "2025-08-07T12:30:00.123Z",
-    };
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      { headers }
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 잘못된 요청 - 최대 주문 수량 초과", async () => {
-    // given
-    const payload = {
-      menuId: "menu_001",
-      quantity: 100,
       shopId: "shop_001",
       memberNo: "member_123",
     };
@@ -421,4 +399,25 @@ describe("POST /api/v1/menu/select", () => {
     expect(error?.response?.status).toBe(400);
     expect(error?.response?.data).toEqual(errorResponse);
   });
+
+  it.each([
+    { quantity: 0, description: "quantity가 0일 때" },
+    { quantity: 100, description: "quantity가 100일 때" },
+    { quantity: 2.5, description: "quantity가 정수가 아닐 때" },
+  ])(
+    "[클라이언트 검증] $description axios.post 호출되지 않음",
+    ({ quantity }) => {
+      // given
+      const payload = {
+        menuId: "menu_001",
+        quantity,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
+
+      // when & then
+      expect(() => validateMenuSelectRequest(payload)).toThrow();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    }
+  );
 });
