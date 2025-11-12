@@ -6,7 +6,13 @@
     "requestHeader": [
       {
         "Name": "Authorization",
-        "Description": "Bearer {ACCESS_TOKEN}"
+        "Required": "Y",
+        "Description": "Bearer {ACCESS_TOKEN} (필수)"
+      },
+      {
+        "Name": "Content-Type",
+        "Required": "N",
+        "Description": "application/json (POST 본문 있을 때 자동 설정)"
       }
     ],
     "requestBody": [
@@ -20,7 +26,9 @@
         "Parameter": "quantity",
         "Type": "integer",
         "Required": "Y",
-        "Description": "주문 수량 (최대 99개)"
+        "Min": 1,
+        "Max": 99,
+        "Description": "주문 수량"
       },
       {
         "Parameter": "shopId",
@@ -35,6 +43,58 @@
         "Description": "회원번호"
       }
     ],
+    "requestBodyExample": {
+      "menuId": "menu_001",
+      "quantity": 2,
+      "shopId": "shop_001",
+      "memberNo": "member_123"
+    },
+    "responses": {
+      "200": {
+        "description": "메뉴 예약 성공",
+        "example": {
+          "status": "SUCCESS",
+          "message": "메뉴 예약이 완료되었습니다",
+          "timestamp": "2025-08-07T12:30:00.123Z",
+          "data": {
+            "reservationId": "RSV_A7K9M2X8",
+            "reservationExpiresAt": "2025-08-07T12:35:00.123Z",
+            "menuId": "menu_001",
+            "quantity": 2
+          }
+        }
+      },
+      "400": {
+        "description": "잘못된 요청",
+        "errorCode": "INVALID_REQUEST",
+        "example": {
+          "status": "ERROR",
+          "message": "요청 정보가 올바르지 않습니다",
+          "errorCode": "INVALID_REQUEST",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
+      },
+      "404": {
+        "description": "존재하지 않는 메뉴",
+        "errorCode": "MENU_NOT_FOUND",
+        "example": {
+          "status": "ERROR",
+          "message": "존재하지 않는 메뉴입니다",
+          "errorCode": "MENU_NOT_FOUND",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
+      },
+      "409": {
+        "description": "재료 부족",
+        "errorCode": "INSUFFICIENT_INGREDIENTS",
+        "example": {
+          "status": "ERROR",
+          "message": "주문하신 수량만큼 재료가 부족합니다",
+          "errorCode": "INSUFFICIENT_INGREDIENTS",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
+      }
+    },
     "responseBody": [
       {
         "Path": "status",
@@ -49,17 +109,19 @@
       {
         "Path": "timestamp",
         "Type": "string",
-        "Description": "응답 시간"
+        "Format": "date-time",
+        "Description": "응답 시간 (RFC3339)"
       },
       {
         "Path": "data.reservationId",
         "Type": "string",
-        "Description": "메뉴 예약 ID (5분 유효)"
+        "Description": "메뉴 예약 ID"
       },
       {
         "Path": "data.reservationExpiresAt",
         "Type": "string",
-        "Description": "예약 만료 시간"
+        "Format": "date-time",
+        "Description": "예약 만료 시간 (RFC3339, timestamp로부터 5분 유효)"
       },
       {
         "Path": "data.menuId",
@@ -75,14 +137,17 @@
     "errorCodes": [
       {
         "ErrorCode": "INSUFFICIENT_INGREDIENTS",
+        "HttpStatus": 409,
         "Description": "재료 부족"
       },
       {
         "ErrorCode": "INVALID_REQUEST",
+        "HttpStatus": 400,
         "Description": "잘못된 요청"
       },
       {
         "ErrorCode": "MENU_NOT_FOUND",
+        "HttpStatus": 404,
         "Description": "존재하지 않는 메뉴"
       }
     ]
@@ -94,7 +159,13 @@
     "requestHeader": [
       {
         "Name": "Authorization",
-        "Description": "Bearer {ACCESS_TOKEN}"
+        "Required": "Y",
+        "Description": "Bearer {ACCESS_TOKEN} (필수)"
+      },
+      {
+        "Name": "Content-Type",
+        "Required": "N",
+        "Description": "application/json (POST 본문 있을 때 자동 설정)"
       }
     ],
     "requestBody": [
@@ -111,6 +182,49 @@
         "Description": "회원번호"
       }
     ],
+    "requestBodyExample": {
+      "reservationId": "RSV_A7K9M2X8",
+      "memberNo": "member_123"
+    },
+    "responses": {
+      "200": {
+        "description": "주문 생성 성공",
+        "example": {
+          "status": "SUCCESS",
+          "message": "주문이 성공적으로 생성되었습니다",
+          "timestamp": "2025-08-07T12:30:00.123Z",
+          "data": {
+            "orderNo": "R7X9K2M8",
+            "orderStatus": "INITIALIZING",
+            "reservationId": "RSV_A7K9M2X8",
+            "createdAt": "2025-08-07T12:30:00.123Z",
+            "memberInfo": {
+              "memberNo": "member_123"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "예약 만료 또는 유효하지 않은 예약",
+        "errorCodes": ["RESERVATION_EXPIRED", "INVALID_RESERVATION"],
+        "example": {
+          "status": "ERROR",
+          "message": "예약 후 5분을 초과하여 예약이 만료되었습니다.",
+          "errorCode": "RESERVATION_EXPIRED",
+          "timestamp": "2025-08-07T12:40:00.123Z"
+        }
+      },
+      "409": {
+        "description": "예약 후 재료 소진",
+        "errorCode": "INGREDIENTS_EXHAUSTED",
+        "example": {
+          "status": "ERROR",
+          "message": "예약 후 재료가 소진되었습니다",
+          "errorCode": "INGREDIENTS_EXHAUSTED",
+          "timestamp": "2025-08-07T12:35:00.123Z"
+        }
+      }
+    },
     "responseBody": [
       {
         "Path": "status",
@@ -125,7 +239,8 @@
       {
         "Path": "timestamp",
         "Type": "string",
-        "Description": "응답 시간"
+        "Format": "date-time",
+        "Description": "응답 시간 (RFC3339)"
       },
       {
         "Path": "data.orderNo",
@@ -145,7 +260,8 @@
       {
         "Path": "data.createdAt",
         "Type": "string",
-        "Description": "주문 생성 시간"
+        "Format": "date-time",
+        "Description": "주문 생성 시간 (RFC3339)"
       },
       {
         "Path": "data.memberInfo.memberNo",
@@ -156,14 +272,17 @@
     "errorCodes": [
       {
         "ErrorCode": "RESERVATION_EXPIRED",
+        "HttpStatus": 400,
         "Description": "예약 만료 (5분 초과)"
       },
       {
         "ErrorCode": "INGREDIENTS_EXHAUSTED",
+        "HttpStatus": 409,
         "Description": "예약 후 재료 소진"
       },
       {
         "ErrorCode": "INVALID_RESERVATION",
+        "HttpStatus": 400,
         "Description": "유효하지 않은 예약"
       }
     ]
