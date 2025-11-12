@@ -37,7 +37,6 @@ describe("POST /api/v1/order/create", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const successResponse = {
@@ -77,7 +76,6 @@ describe("POST /api/v1/order/create", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -120,7 +118,6 @@ describe("POST /api/v1/order/create", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -163,7 +160,6 @@ describe("POST /api/v1/order/create", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {

@@ -5,16 +5,8 @@
     "restfulUrl": "/api/v1/menu/select",
     "requestHeader": [
       {
-        "Name": "Content-Type",
-        "Description": "application/json;charset=UTF-8"
-      },
-      {
         "Name": "Authorization",
         "Description": "Bearer {ACCESS_TOKEN}"
-      },
-      {
-        "Name": "Host",
-        "Description": "{API_URL}"
       }
     ],
     "requestBody": [
@@ -101,16 +93,8 @@
     "restfulUrl": "/api/v1/order/create",
     "requestHeader": [
       {
-        "Name": "Content-Type",
-        "Description": "application/json;charset=UTF-8"
-      },
-      {
         "Name": "Authorization",
         "Description": "Bearer {ACCESS_TOKEN}"
-      },
-      {
-        "Name": "Host",
-        "Description": "{API_URL}"
       }
     ],
     "requestBody": [

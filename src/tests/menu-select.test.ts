@@ -39,7 +39,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const successResponse = {
@@ -78,7 +77,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -122,7 +120,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -166,7 +163,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -211,7 +207,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -256,7 +251,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -300,7 +294,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -336,7 +329,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(error?.response?.data).toEqual(errorResponse);
   });
 
-  it("[400][실패] 잘못된 요청 - 필수값(memberId) 누락", async () => {
+  it("[400][실패] 잘못된 요청 - 필수값(memberNo) 누락", async () => {
     // given
     const payload = {
       menuId: "menu_001",
@@ -344,7 +337,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
@@ -389,7 +381,6 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers = {
-      "Content-Type": "application/json;charset=UTF-8",
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
