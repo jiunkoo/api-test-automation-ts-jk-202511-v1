@@ -84,6 +84,26 @@
           "timestamp": "2025-08-07T12:30:00.123Z"
         }
       },
+      "401": {
+        "description": "인증 실패",
+        "errorCode": "UNAUTHORIZED",
+        "example": {
+          "status": "ERROR",
+          "message": "인증이 필요합니다",
+          "errorCode": "UNAUTHORIZED",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
+      },
+      "403": {
+        "description": "권한 부족",
+        "errorCode": "FORBIDDEN",
+        "example": {
+          "status": "ERROR",
+          "message": "접근 권한이 없습니다",
+          "errorCode": "FORBIDDEN",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
+      },
       "409": {
         "description": "재료 부족",
         "errorCode": "INSUFFICIENT_INGREDIENTS",
@@ -135,6 +155,16 @@
       }
     ],
     "errorCodes": [
+      {
+        "ErrorCode": "UNAUTHORIZED",
+        "HttpStatus": 401,
+        "Description": "인증 실패"
+      },
+      {
+        "ErrorCode": "FORBIDDEN",
+        "HttpStatus": 403,
+        "Description": "권한 부족"
+      },
       {
         "ErrorCode": "INSUFFICIENT_INGREDIENTS",
         "HttpStatus": 409,
