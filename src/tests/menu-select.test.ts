@@ -52,7 +52,12 @@ describe("POST /api/v1/menu/select", () => {
         quantity: 2,
       },
     };
-    mockedAxios.post.mockResolvedValueOnce(successResponse);
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: successResponse,
+    });
 
     // when
     const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
@@ -65,7 +70,8 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(successResponse);
+    expect(response.status).toBe(200);
+    expect(response.data).toEqual(successResponse);
   });
 
   it("[400][실패] 재료 부족", async () => {

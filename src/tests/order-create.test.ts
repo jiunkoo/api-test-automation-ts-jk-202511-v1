@@ -53,7 +53,12 @@ describe("POST /api/v1/order/create", () => {
         },
       },
     };
-    mockedAxios.post.mockResolvedValueOnce(successResponse);
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: successResponse,
+    });
 
     // when
     const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
@@ -66,7 +71,8 @@ describe("POST /api/v1/order/create", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(successResponse);
+    expect(response.status).toBe(200);
+    expect(response.data).toEqual(successResponse);
   });
 
   it("[400][실패] 예약 만료 (5분 초과)", async () => {
