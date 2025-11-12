@@ -1,0 +1,187 @@
+{
+  "POST_/api/v1/menu/select": {
+    "description": "메뉴 선택 API",
+    "restfulMethod": "POST",
+    "restfulUrl": "/api/v1/menu/select",
+    "requestHeader": [
+      {
+        "Name": "Content-Type",
+        "Description": "application/json;charset=UTF-8"
+      },
+      {
+        "Name": "Authorization",
+        "Description": "Bearer {ACCESS_TOKEN}"
+      },
+      {
+        "Name": "Host",
+        "Description": "{API_URL}"
+      }
+    ],
+    "requestBody": [
+      {
+        "Parameter": "menuId",
+        "Type": "string",
+        "Required": "Y",
+        "Description": "메뉴 ID"
+      },
+      {
+        "Parameter": "quantity",
+        "Type": "integer",
+        "Required": "Y",
+        "Description": "주문 수량 (최대 99개)"
+      },
+      {
+        "Parameter": "shopId",
+        "Type": "string",
+        "Required": "Y",
+        "Description": "가게 ID"
+      },
+      {
+        "Parameter": "memberNo",
+        "Type": "string",
+        "Required": "Y",
+        "Description": "회원번호"
+      }
+    ],
+    "responseBody": [
+      {
+        "Path": "status",
+        "Type": "string",
+        "Description": "응답 상태 (SUCCESS/ERROR)"
+      },
+      {
+        "Path": "message",
+        "Type": "string",
+        "Description": "응답 메시지"
+      },
+      {
+        "Path": "timestamp",
+        "Type": "string",
+        "Description": "응답 시간"
+      },
+      {
+        "Path": "data.reservationId",
+        "Type": "string",
+        "Description": "메뉴 예약 ID (5분 유효)"
+      },
+      {
+        "Path": "data.reservationExpiresAt",
+        "Type": "string",
+        "Description": "예약 만료 시간"
+      },
+      {
+        "Path": "data.menuId",
+        "Type": "string",
+        "Description": "메뉴 ID"
+      },
+      {
+        "Path": "data.quantity",
+        "Type": "integer",
+        "Description": "선택 수량"
+      }
+    ],
+    "errorCodes": [
+      {
+        "ErrorCode": "INSUFFICIENT_INGREDIENTS",
+        "Description": "재료 부족"
+      },
+      {
+        "ErrorCode": "INVALID_REQUEST",
+        "Description": "잘못된 요청"
+      },
+      {
+        "ErrorCode": "MENU_NOT_FOUND",
+        "Description": "존재하지 않는 메뉴"
+      }
+    ]
+  },
+  "POST_/api/v1/order/create": {
+    "description": "주문 생성 API",
+    "restfulMethod": "POST",
+    "restfulUrl": "/api/v1/order/create",
+    "requestHeader": [
+      {
+        "Name": "Content-Type",
+        "Description": "application/json;charset=UTF-8"
+      },
+      {
+        "Name": "Authorization",
+        "Description": "Bearer {ACCESS_TOKEN}"
+      },
+      {
+        "Name": "Host",
+        "Description": "{API_URL}"
+      }
+    ],
+    "requestBody": [
+      {
+        "Parameter": "reservationId",
+        "Type": "string",
+        "Required": "Y",
+        "Description": "메뉴선택에서 받은 예약 ID"
+      },
+      {
+        "Parameter": "memberNo",
+        "Type": "string",
+        "Required": "Y",
+        "Description": "회원번호"
+      }
+    ],
+    "responseBody": [
+      {
+        "Path": "status",
+        "Type": "string",
+        "Description": "응답 상태 (SUCCESS/ERROR)"
+      },
+      {
+        "Path": "message",
+        "Type": "string",
+        "Description": "응답 메시지"
+      },
+      {
+        "Path": "timestamp",
+        "Type": "string",
+        "Description": "응답 시간"
+      },
+      {
+        "Path": "data.orderNo",
+        "Type": "string",
+        "Description": "주문 번호 (8자리 영숫자)"
+      },
+      {
+        "Path": "data.orderStatus",
+        "Type": "string",
+        "Description": "주문 상태 (INITIALIZING)"
+      },
+      {
+        "Path": "data.reservationId",
+        "Type": "string",
+        "Description": "사용된 예약 ID"
+      },
+      {
+        "Path": "data.createdAt",
+        "Type": "string",
+        "Description": "주문 생성 시간"
+      },
+      {
+        "Path": "data.memberInfo.memberNo",
+        "Type": "string",
+        "Description": "회원번호"
+      }
+    ],
+    "errorCodes": [
+      {
+        "ErrorCode": "RESERVATION_EXPIRED",
+        "Description": "예약 만료 (5분 초과)"
+      },
+      {
+        "ErrorCode": "INGREDIENTS_EXHAUSTED",
+        "Description": "예약 후 재료 소진"
+      },
+      {
+        "ErrorCode": "INVALID_RESERVATION",
+        "Description": "유효하지 않은 예약"
+      }
+    ]
+  }
+}
