@@ -633,4 +633,152 @@ describe("POST /api/v1/menu/select", () => {
     expect(error?.response?.data).toEqual(errorResponse);
     expect(error?.response?.headers["retry-after"]).toBe("60");
   });
+
+  it("[멱등성] 동일한 Idempotency-Key로 중복 요청 시 동일한 reservationId 반환", async () => {
+    // given
+    const payload = {
+      menuId: "menu_001",
+      quantity: 2,
+      shopId: "shop_001",
+      memberNo: "member_123",
+    };
+    const idempotencyKey = "idempotency-key-12345";
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "x-idempotency-key": idempotencyKey,
+    };
+    const successResponse = {
+      status: "SUCCESS",
+      message: "메뉴 예약이 완료되었습니다",
+      timestamp: "2025-08-07T12:30:00.123Z",
+      data: {
+        reservationId: "RSV_A7K9M2X8",
+        reservationExpiresAt: "2025-08-07T12:35:00.123Z",
+        menuId: "menu_001",
+        quantity: 2,
+      },
+    };
+    mockedAxios.post.mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: successResponse,
+    });
+
+    // when
+    const response1 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    const response2 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      1,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      2,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    // 동일한 Idempotency-Key로 요청 시 동일한 reservationId 반환
+    expect(response1.data.data.reservationId).toBe(
+      response2.data.data.reservationId
+    );
+    expect(response1.data.data.reservationId).toBe("RSV_A7K9M2X8");
+  });
+
+  it("[멱등성] 다른 Idempotency-Key로 요청 시 다른 reservationId 반환", async () => {
+    // given
+    const payload = {
+      menuId: "menu_001",
+      quantity: 2,
+      shopId: "shop_001",
+      memberNo: "member_123",
+    };
+    const headers1 = {
+      Authorization: `Bearer ${accessToken}`,
+      "x-idempotency-key": "idempotency-key-11111",
+    };
+    const headers2 = {
+      Authorization: `Bearer ${accessToken}`,
+      "x-idempotency-key": "idempotency-key-22222",
+    };
+    const successResponse1 = {
+      status: "SUCCESS",
+      message: "메뉴 예약이 완료되었습니다",
+      timestamp: "2025-08-07T12:30:00.123Z",
+      data: {
+        reservationId: "RSV_A7K9M2X8",
+        reservationExpiresAt: "2025-08-07T12:35:00.123Z",
+        menuId: "menu_001",
+        quantity: 2,
+      },
+    };
+    const successResponse2 = {
+      status: "SUCCESS",
+      message: "메뉴 예약이 완료되었습니다",
+      timestamp: "2025-08-07T12:30:00.123Z",
+      data: {
+        reservationId: "RSV_DIFFERENT_ID",
+        reservationExpiresAt: "2025-08-07T12:35:00.123Z",
+        menuId: "menu_001",
+        quantity: 2,
+      },
+    };
+    mockedAxios.post
+      .mockResolvedValueOnce({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        data: successResponse1,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        data: successResponse2,
+      });
+
+    // when
+    const response1 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers: headers1 }
+    );
+    const response2 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers: headers2 }
+    );
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      1,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers: headers1 }
+    );
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      2,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers: headers2 }
+    );
+    // 다른 Idempotency-Key로 요청 시 다른 reservationId 반환
+    expect(response1.data.data.reservationId).not.toBe(
+      response2.data.data.reservationId
+    );
+  });
 });
