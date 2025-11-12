@@ -1,5 +1,5 @@
 import "dotenv/config";
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import apiSpec from "../data/api-spec.json";
@@ -86,12 +86,20 @@ describe("POST /api/v1/order/create", () => {
       errorCode: "RESERVATION_EXPIRED",
       timestamp: "2025-08-07T12:40:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -99,7 +107,10 @@ describe("POST /api/v1/order/create", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 예약 후 재료 소진", async () => {
@@ -118,12 +129,20 @@ describe("POST /api/v1/order/create", () => {
       errorCode: "INGREDIENTS_EXHAUSTED",
       timestamp: "2025-08-07T12:35:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -131,7 +150,10 @@ describe("POST /api/v1/order/create", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 유효하지 않은 예약", async () => {
@@ -150,12 +172,20 @@ describe("POST /api/v1/order/create", () => {
       errorCode: "INVALID_RESERVATION",
       timestamp: "2025-08-07T12:35:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -163,6 +193,9 @@ describe("POST /api/v1/order/create", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 });

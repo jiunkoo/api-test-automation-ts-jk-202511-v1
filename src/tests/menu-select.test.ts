@@ -1,5 +1,5 @@
 import "dotenv/config";
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import apiSpec from "../data/api-spec.json";
@@ -87,12 +87,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INSUFFICIENT_INGREDIENTS",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -100,7 +108,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 필수값(menuId) 누락", async () => {
@@ -120,12 +131,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -133,7 +152,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 필수값(quantity) 누락", async () => {
@@ -153,12 +175,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -166,7 +196,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 최소 주문 수량 미달", async () => {
@@ -187,12 +220,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -200,7 +241,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 최대 주문 수량 초과", async () => {
@@ -221,12 +265,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -234,7 +286,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 필수값(shopId) 누락", async () => {
@@ -254,12 +309,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -267,7 +330,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 잘못된 요청 - 필수값(memberId) 누락", async () => {
@@ -287,12 +353,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "INVALID_REQUEST",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -300,7 +374,10 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 
   it("[400][실패] 존재하지 않는 메뉴", async () => {
@@ -321,12 +398,20 @@ describe("POST /api/v1/menu/select", () => {
       errorCode: "MENU_NOT_FOUND",
       timestamp: "2025-08-07T12:30:00.123Z",
     };
-    mockedAxios.post.mockResolvedValueOnce(errorResponse);
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 400, data: errorResponse },
+    } as AxiosError);
 
     // when
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -334,6 +419,9 @@ describe("POST /api/v1/menu/select", () => {
       payload,
       { headers }
     );
-    expect(response).toEqual(errorResponse);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
   });
 });
