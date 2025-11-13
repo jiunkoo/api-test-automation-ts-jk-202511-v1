@@ -5,5 +5,6 @@ export default defineConfig({
     globals: true,
     include: ["src/**/*.test.ts"],
     reporters: "default",
+    setupFiles: ["./src/utils/logger.ts"],
   },
 });
