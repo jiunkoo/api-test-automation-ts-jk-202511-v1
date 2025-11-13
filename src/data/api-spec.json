@@ -268,6 +268,16 @@
           "errorCode": "INGREDIENTS_EXHAUSTED",
           "timestamp": "2025-08-07T12:35:00.123Z"
         }
+      },
+      "429": {
+        "description": "요청 한도 초과",
+        "errorCode": "RATE_LIMIT_EXCEEDED",
+        "example": {
+          "status": "ERROR",
+          "message": "요청 한도를 초과했습니다",
+          "errorCode": "RATE_LIMIT_EXCEEDED",
+          "timestamp": "2025-08-07T12:30:00.123Z"
+        }
       }
     },
     "responseBody": [
