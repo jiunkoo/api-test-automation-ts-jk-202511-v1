@@ -117,52 +117,8 @@ describe("POST /api/v1/order/create", () => {
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
-      status: "ERROR",
-      message: "예약 후 5분을 초과하여 예약이 만료되었습니다.",
+      ...spec.responses["400"].example,
       errorCode: "RESERVATION_EXPIRED",
-      timestamp: "2025-08-07T12:40:00.123Z",
-    };
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      { headers }
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 예약 후 재료 소진", async () => {
-    // given
-    const payload = {
-      reservationId: "RSV_A7K9M2X8",
-      memberNo: "member_123",
-    };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
-    const errorResponse = {
-      status: "ERROR",
-      message: "예약 후 재료가 소진되었습니다",
-      errorCode: "INGREDIENTS_EXHAUSTED",
-      timestamp: "2025-08-07T12:35:00.123Z",
     };
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -201,10 +157,8 @@ describe("POST /api/v1/order/create", () => {
       Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = {
-      status: "ERROR",
-      message: "유효하지 않은 예약입니다",
+      ...spec.responses["400"].example,
       errorCode: "INVALID_RESERVATION",
-      timestamp: "2025-08-07T12:35:00.123Z",
     };
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -230,6 +184,43 @@ describe("POST /api/v1/order/create", () => {
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
     expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
+  });
+
+  it("[409][실패] 예약 후 재료 소진", async () => {
+    // given
+    const payload = {
+      reservationId: "RSV_A7K9M2X8",
+      memberNo: "member_123",
+    };
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const errorResponse = spec.responses["409"].example;
+    mockedAxios.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 409, data: errorResponse },
+    } as AxiosError);
+
+    // when
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(409);
     expect(error?.response?.data).toEqual(errorResponse);
   });
 });
