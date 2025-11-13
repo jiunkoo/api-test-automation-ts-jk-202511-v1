@@ -490,4 +490,119 @@ describe("POST /api/v1/order/create", () => {
     const retryAfter = error?.response?.headers["retry-after"];
     expect(Number(retryAfter)).toBe(60);
   });
+
+  it("[멱등성] 동일한 Idempotency-Key로 중복 요청 시 동일한 orderNo 반환", async () => {
+    // given
+    const payload = {
+      reservationId: "RSV_A7K9M2X8",
+      memberNo: "member_123",
+    };
+    const idempotencyKey = "idempotency-key-12345";
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "x-idempotency-key": idempotencyKey,
+    };
+    const successResponse = spec.responses["200"].example;
+    mockedAxios.post.mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: successResponse,
+    });
+
+    // when
+    const response1 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    const response2 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      1,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      2,
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+    expect(response1.data.data.orderNo).toBe(response2.data.data.orderNo);
+    expect(response1.data.data.orderNo).toBe("R7X9K2M8");
+  });
+
+  it("[멱등성] 같은 Idempotency-Key로 다른 바디 요청 시 409 IDEMP_CONFLICT", async () => {
+    // given
+    const payload1 = {
+      reservationId: "RSV_A7K9M2X8",
+      memberNo: "member_123",
+    };
+    const payload2 = {
+      reservationId: "RSV_DIFFERENT_ID",
+      memberNo: "member_123",
+    };
+    const idempotencyKey = "idempotency-key-12345";
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "x-idempotency-key": idempotencyKey,
+    };
+    const successResponse = spec.responses["200"].example;
+    const errorResponse = {
+      status: "ERROR",
+      message: "같은 Idempotency-Key로 다른 요청 본문이 전송되었습니다",
+      errorCode: "IDEMP_CONFLICT",
+      timestamp: "2025-08-07T12:30:00.123Z",
+    };
+    mockedAxios.post
+      .mockResolvedValueOnce({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        data: successResponse,
+      })
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          status: 409,
+          statusText: "Conflict",
+          headers: {},
+          data: errorResponse,
+        },
+        code: "ERR_BAD_RESPONSE",
+        name: "AxiosError",
+        message: "Request failed with status code 409",
+      } as unknown as AxiosError);
+
+    // when
+    const response1 = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload1,
+      { headers }
+    );
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload2, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(response1.data.data.orderNo).toBe("R7X9K2M8");
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(409);
+    expect(error?.response?.data).toEqual(errorResponse);
+  });
 });
