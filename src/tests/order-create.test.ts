@@ -223,4 +223,108 @@ describe("POST /api/v1/order/create", () => {
     expect(error?.response?.status).toBe(409);
     expect(error?.response?.data).toEqual(errorResponse);
   });
+
+  it("[정상 흐름] menu-select → order-create", async () => {
+    // given
+    const menuSelectSpec = apiSpec["POST_/api/v1/menu/select"];
+    const menuSelectPayload = menuSelectSpec.requestBodyExample;
+    const menuSelectHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const menuSelectResponse = menuSelectSpec.responses["200"].example;
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: menuSelectResponse,
+    });
+
+    // when
+    const menuSelectResult = await axios.post(
+      `${baseURL}${menuSelectSpec.restfulUrl}`,
+      menuSelectPayload,
+      { headers: menuSelectHeaders }
+    );
+    const reservationId = menuSelectResult.data.data.reservationId;
+
+    // given
+    const orderCreatePayload = {
+      reservationId,
+      memberNo: menuSelectPayload.memberNo,
+    };
+    const orderCreateHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const orderCreateResponse = spec.responses["200"].example;
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      data: orderCreateResponse,
+    });
+
+    // when
+    const orderCreateResult = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      orderCreatePayload,
+      { headers: orderCreateHeaders }
+    );
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(menuSelectResult.data.data.reservationId).toBe(reservationId);
+    expect(orderCreateResult.status).toBe(200);
+    expect(orderCreateResult.data.data.reservationId).toBe(reservationId);
+  });
+
+  it("[중복 주문 방지] 같은 reservationId로 두 번째 order-create 시 거부", async () => {
+    // given
+    const payload = {
+      reservationId: "RSV_A7K9M2X8",
+      memberNo: "member_123",
+    };
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    const successResponse = spec.responses["200"].example;
+    const errorResponse = {
+      ...spec.responses["400"].example,
+      errorCode: "INVALID_RESERVATION",
+    };
+    mockedAxios.post
+      .mockResolvedValueOnce({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        data: successResponse,
+      })
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status: 400, data: errorResponse },
+      } as AxiosError);
+
+    // when
+    const firstResponse = await axios.post(
+      `${baseURL}${spec.restfulUrl}`,
+      payload,
+      { headers }
+    );
+
+    let error: AxiosError | undefined;
+    try {
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+        headers,
+      });
+    } catch (e) {
+      error = e as AxiosError;
+    }
+
+    // then
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(firstResponse.status).toBe(200);
+    expect(error).toBeDefined();
+    expect(error?.isAxiosError).toBe(true);
+    expect(error?.response?.status).toBe(400);
+    expect(error?.response?.data).toEqual(errorResponse);
+  });
 });
