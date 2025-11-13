@@ -1,6 +1,7 @@
 import "dotenv/config";
 import axios, { type AxiosError } from "axios";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import apiSpec from "../data/api-spec.json";
 
@@ -59,6 +60,26 @@ describe("POST /api/v1/order/create", () => {
       headers: {},
       data: successResponse,
     });
+    const successResponseSchema = z.object({
+      status: z.literal("SUCCESS"),
+      message: z.string(),
+      timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+        message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
+      }),
+      data: z.object({
+        orderNo: z.string().regex(/^[A-Z0-9]{8}$/, {
+          message: "orderNo는 8자리 영숫자여야 합니다",
+        }),
+        orderStatus: z.literal("INITIALIZING"),
+        reservationId: z.string(),
+        createdAt: z.string().refine((val) => !isNaN(Date.parse(val)), {
+          message: "createdAt는 유효한 ISO 8601 형식이어야 합니다",
+        }),
+        memberInfo: z.object({
+          memberNo: z.string(),
+        }),
+      }),
+    });
 
     // when
     const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
@@ -73,6 +94,17 @@ describe("POST /api/v1/order/create", () => {
     );
     expect(response.status).toBe(200);
     expect(response.data).toEqual(successResponse);
+
+    const validatedData = successResponseSchema.parse(response.data);
+    expect(validatedData.data.orderNo).toMatch(/^[A-Z0-9]{8}$/);
+    expect(validatedData.data.orderStatus).toBe("INITIALIZING");
+
+    const timestamp = new Date(response.data.timestamp);
+    const createdAt = new Date(response.data.data.createdAt);
+    const diffSeconds = Math.abs(
+      (createdAt.getTime() - timestamp.getTime()) / 1000
+    );
+    expect(diffSeconds).toBeLessThanOrEqual(1.5);
   });
 
   it("[400][실패] 예약 만료 (5분 초과)", async () => {
