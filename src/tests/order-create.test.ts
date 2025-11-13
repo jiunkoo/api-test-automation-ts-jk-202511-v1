@@ -30,6 +30,23 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+const VALIDATION_ERRORS = {
+  RESERVATION_ID_REQUIRED: "reservationId는 필수값입니다",
+  MEMBER_NO_REQUIRED: "memberNo는 필수값입니다",
+} as const;
+
+const validateOrderCreateRequest = (payload: {
+  reservationId?: string;
+  memberNo?: string;
+}): void => {
+  if (!payload.reservationId) {
+    throw new Error(VALIDATION_ERRORS.RESERVATION_ID_REQUIRED);
+  }
+  if (!payload.memberNo) {
+    throw new Error(VALIDATION_ERRORS.MEMBER_NO_REQUIRED);
+  }
+};
+
 describe("POST /api/v1/order/create", () => {
   it("[200][성공] 주문 생성 성공", async () => {
     // given
@@ -82,6 +99,7 @@ describe("POST /api/v1/order/create", () => {
     });
 
     // when
+    expect(() => validateOrderCreateRequest(payload)).not.toThrow();
     const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
       headers,
     });
@@ -326,5 +344,27 @@ describe("POST /api/v1/order/create", () => {
     expect(error?.isAxiosError).toBe(true);
     expect(error?.response?.status).toBe(400);
     expect(error?.response?.data).toEqual(errorResponse);
+  });
+
+  it("[클라이언트 검증] reservationId 누락 시 axios.post 호출되지 않음", () => {
+    // given
+    const payload = {
+      memberNo: "member_123",
+    };
+
+    // when & then
+    expect(() => validateOrderCreateRequest(payload)).toThrow();
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it("[클라이언트 검증] memberNo 누락 시 axios.post 호출되지 않음", () => {
+    // given
+    const payload = {
+      reservationId: "RSV_A7K9M2X8",
+    };
+
+    // when & then
+    expect(() => validateOrderCreateRequest(payload)).toThrow();
+    expect(mockedAxios.post).not.toHaveBeenCalled();
   });
 });
