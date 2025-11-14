@@ -4,6 +4,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import apiSpec from "../data/api-spec.json";
+import {
+  mockSuccess,
+  mockError,
+  mockNetworkError,
+} from "../utils/mock-helpers";
 
 const spec = apiSpec["POST_/api/v1/menu/select"];
 const baseURL = process.env.API_URL;
@@ -85,11 +90,7 @@ describe("POST /api/v1/menu/select", () => {
         quantity: 2,
       },
     };
-    mockedAxios.post.mockResolvedValueOnce({
-      status: 200,
-      statusText: "OK",
-      data: successResponse,
-    });
+    mockSuccess(mockedAxios.post, successResponse);
     const successResponseSchema = z.object({
       status: z.literal("SUCCESS"),
       message: z.string(),
@@ -143,10 +144,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["409"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 409, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 409, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -176,10 +174,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["400"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 400, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -209,10 +204,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["400"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 400, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -242,10 +234,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["400"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 400, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -275,10 +264,7 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
     };
     const errorResponse = spec.responses["400"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 400, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 400, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -309,10 +295,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["404"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 404, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 404, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -344,10 +327,7 @@ describe("POST /api/v1/menu/select", () => {
     };
     const headers = { "x-skip-auth": true };
     const errorResponse = spec.responses["401"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 401, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 401, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -380,10 +360,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["401"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 401, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 401, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -414,10 +391,7 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["403"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 403, data: errorResponse },
-    } as AxiosError);
+    mockError(mockedAxios.post, 403, errorResponse);
 
     // when
     let error: AxiosError | undefined;
@@ -468,12 +442,11 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const timeoutError = {
-      code: "ECONNABORTED",
-      message: "timeout of 5000ms exceeded",
-      isAxiosError: true,
-    };
-    mockedAxios.post.mockRejectedValueOnce(timeoutError as AxiosError);
+    mockNetworkError(
+      mockedAxios.post,
+      "ECONNABORTED",
+      "timeout of 5000ms exceeded"
+    );
 
     // when
     let error: AxiosError | undefined;
@@ -502,12 +475,7 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const networkError = {
-      code: "ENETUNREACH",
-      message: "Network unreachable",
-      isAxiosError: true,
-    };
-    mockedAxios.post.mockRejectedValueOnce(networkError as AxiosError);
+    mockNetworkError(mockedAxios.post, "ENETUNREACH", "Network unreachable");
 
     // when
     let error: AxiosError | undefined;
@@ -537,20 +505,11 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const errorResponse = spec.responses["429"].example;
-    mockedAxios.post.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: {
-        status: 429,
-        statusText: "Too Many Requests",
-        headers: {
-          "retry-after": "60",
-        },
-        data: errorResponse,
-      },
+    mockError(mockedAxios.post, 429, errorResponse, {
+      headers: { "retry-after": "60" },
       code: "ERR_BAD_RESPONSE",
-      name: "AxiosError",
       message: "Request failed with status code 429",
-    } as unknown as AxiosError);
+    });
 
     // when
     let error: AxiosError | undefined;
@@ -596,11 +555,7 @@ describe("POST /api/v1/menu/select", () => {
         quantity: 2,
       },
     };
-    mockedAxios.post.mockResolvedValue({
-      status: 200,
-      statusText: "OK",
-      data: successResponse,
-    });
+    mockSuccess(mockedAxios.post, successResponse, true);
 
     // when
     const response1 = await axios.post(
@@ -636,7 +591,6 @@ describe("POST /api/v1/menu/select", () => {
         }),
       })
     );
-    // 동일한 Idempotency-Key로 요청 시 동일한 reservationId 반환
     expect(response1.data.data.reservationId).toBe(
       response2.data.data.reservationId
     );
@@ -679,17 +633,8 @@ describe("POST /api/v1/menu/select", () => {
         quantity: 2,
       },
     };
-    mockedAxios.post
-      .mockResolvedValueOnce({
-        status: 200,
-        statusText: "OK",
-        data: successResponse1,
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        statusText: "OK",
-        data: successResponse2,
-      });
+    mockSuccess(mockedAxios.post, successResponse1);
+    mockSuccess(mockedAxios.post, successResponse2);
 
     // when
     const response1 = await axios.post(
@@ -725,7 +670,6 @@ describe("POST /api/v1/menu/select", () => {
         }),
       })
     );
-    // 다른 Idempotency-Key로 요청 시 다른 reservationId 반환
     expect(response1.data.data.reservationId).not.toBe(
       response2.data.data.reservationId
     );
