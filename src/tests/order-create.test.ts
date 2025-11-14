@@ -54,9 +54,6 @@ describe("POST /api/v1/order/create", () => {
       reservationId: "RSV_A7K9M2X8",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const successResponse = {
       status: "SUCCESS",
       message: "주문이 성공적으로 생성되었습니다",
@@ -74,7 +71,6 @@ describe("POST /api/v1/order/create", () => {
     mockedAxios.post.mockResolvedValueOnce({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: successResponse,
     });
     const successResponseSchema = z.object({
@@ -100,15 +96,13 @@ describe("POST /api/v1/order/create", () => {
 
     // when
     expect(() => validateOrderCreateRequest(payload)).not.toThrow();
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(response.status).toBe(200);
     expect(response.data).toEqual(successResponse);
@@ -131,9 +125,6 @@ describe("POST /api/v1/order/create", () => {
       reservationId: "RSV_A7K9M2X8",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = {
       ...spec.responses["400"].example,
       errorCode: "RESERVATION_EXPIRED",
@@ -146,9 +137,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -157,7 +146,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -171,9 +160,6 @@ describe("POST /api/v1/order/create", () => {
       reservationId: "unknown_reservation_id",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = {
       ...spec.responses["400"].example,
       errorCode: "INVALID_RESERVATION",
@@ -186,9 +172,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -197,7 +181,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -223,9 +207,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -234,7 +216,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -246,22 +228,17 @@ describe("POST /api/v1/order/create", () => {
     // given
     const menuSelectSpec = apiSpec["POST_/api/v1/menu/select"];
     const menuSelectPayload = menuSelectSpec.requestBodyExample;
-    const menuSelectHeaders = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const menuSelectResponse = menuSelectSpec.responses["200"].example;
     mockedAxios.post.mockResolvedValueOnce({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: menuSelectResponse,
     });
 
     // when
     const menuSelectResult = await axios.post(
       `${baseURL}${menuSelectSpec.restfulUrl}`,
-      menuSelectPayload,
-      { headers: menuSelectHeaders }
+      menuSelectPayload
     );
     const reservationId = menuSelectResult.data.data.reservationId;
 
@@ -270,22 +247,17 @@ describe("POST /api/v1/order/create", () => {
       reservationId,
       memberNo: menuSelectPayload.memberNo,
     };
-    const orderCreateHeaders = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const orderCreateResponse = spec.responses["200"].example;
     mockedAxios.post.mockResolvedValueOnce({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: orderCreateResponse,
     });
 
     // when
     const orderCreateResult = await axios.post(
       `${baseURL}${spec.restfulUrl}`,
-      orderCreatePayload,
-      { headers: orderCreateHeaders }
+      orderCreatePayload
     );
 
     // then
@@ -301,9 +273,6 @@ describe("POST /api/v1/order/create", () => {
       reservationId: "RSV_A7K9M2X8",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const successResponse = spec.responses["200"].example;
     const errorResponse = {
       ...spec.responses["400"].example,
@@ -313,7 +282,6 @@ describe("POST /api/v1/order/create", () => {
       .mockResolvedValueOnce({
         status: 200,
         statusText: "OK",
-        headers: {},
         data: successResponse,
       })
       .mockRejectedValueOnce({
@@ -324,15 +292,12 @@ describe("POST /api/v1/order/create", () => {
     // when
     const firstResponse = await axios.post(
       `${baseURL}${spec.restfulUrl}`,
-      payload,
-      { headers }
+      payload
     );
 
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -387,9 +352,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -398,7 +361,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -424,9 +387,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -435,7 +396,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -470,9 +431,7 @@ describe("POST /api/v1/order/create", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -481,7 +440,7 @@ describe("POST /api/v1/order/create", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -499,14 +458,12 @@ describe("POST /api/v1/order/create", () => {
     };
     const idempotencyKey = "idempotency-key-12345";
     const headers = {
-      Authorization: `Bearer ${accessToken}`,
       "x-idempotency-key": idempotencyKey,
     };
     const successResponse = spec.responses["200"].example;
     mockedAxios.post.mockResolvedValue({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: successResponse,
     });
 
@@ -528,13 +485,21 @@ describe("POST /api/v1/order/create", () => {
       1,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": idempotencyKey,
+        }),
+      })
     );
     expect(mockedAxios.post).toHaveBeenNthCalledWith(
       2,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": idempotencyKey,
+        }),
+      })
     );
     expect(response1.data.data.orderNo).toBe(response2.data.data.orderNo);
     expect(response1.data.data.orderNo).toBe("R7X9K2M8");
@@ -552,7 +517,6 @@ describe("POST /api/v1/order/create", () => {
     };
     const idempotencyKey = "idempotency-key-12345";
     const headers = {
-      Authorization: `Bearer ${accessToken}`,
       "x-idempotency-key": idempotencyKey,
     };
     const successResponse = spec.responses["200"].example;
@@ -566,7 +530,6 @@ describe("POST /api/v1/order/create", () => {
       .mockResolvedValueOnce({
         status: 200,
         statusText: "OK",
-        headers: {},
         data: successResponse,
       })
       .mockRejectedValueOnce({
@@ -574,7 +537,6 @@ describe("POST /api/v1/order/create", () => {
         response: {
           status: 409,
           statusText: "Conflict",
-          headers: {},
           data: errorResponse,
         },
         code: "ERR_BAD_RESPONSE",

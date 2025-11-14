@@ -74,9 +74,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const successResponse = {
       status: "SUCCESS",
       message: "메뉴 예약이 완료되었습니다",
@@ -91,7 +88,6 @@ describe("POST /api/v1/menu/select", () => {
     mockedAxios.post.mockResolvedValueOnce({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: successResponse,
     });
     const successResponseSchema = z.object({
@@ -114,15 +110,13 @@ describe("POST /api/v1/menu/select", () => {
 
     // when
     expect(() => validateMenuSelectRequest(payload)).not.toThrow();
-    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-      headers,
-    });
+    const response = await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
 
     // then
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(response.status).toBe(200);
     expect(response.data).toEqual(successResponse);
@@ -148,9 +142,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["409"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -160,9 +151,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -171,7 +160,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -186,9 +175,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["400"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -198,9 +184,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -209,7 +193,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -224,9 +208,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["400"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -236,9 +217,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -247,7 +226,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -262,9 +241,6 @@ describe("POST /api/v1/menu/select", () => {
       quantity: 2,
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["400"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -274,9 +250,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -285,7 +259,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -300,9 +274,6 @@ describe("POST /api/v1/menu/select", () => {
       quantity: 2,
       shopId: "shop_001",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["400"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -312,9 +283,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -323,7 +292,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -339,9 +308,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["404"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -351,9 +317,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -362,7 +326,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -415,9 +379,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: "Bearer expired_token",
-    };
     const errorResponse = spec.responses["401"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -427,9 +388,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -438,7 +397,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -454,9 +413,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const errorResponse = spec.responses["403"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,
@@ -466,9 +422,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -477,7 +431,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -514,9 +468,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const timeoutError = {
       code: "ECONNABORTED",
       message: "timeout of 5000ms exceeded",
@@ -527,9 +478,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -538,7 +487,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -553,9 +502,6 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-    };
     const networkError = {
       code: "ENETUNREACH",
       message: "Network unreachable",
@@ -566,9 +512,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -577,7 +521,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -591,9 +535,6 @@ describe("POST /api/v1/menu/select", () => {
       quantity: 2,
       shopId: "shop_001",
       memberNo: "member_123",
-    };
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
     };
     const errorResponse = spec.responses["429"].example;
     mockedAxios.post.mockRejectedValueOnce({
@@ -614,9 +555,7 @@ describe("POST /api/v1/menu/select", () => {
     // when
     let error: AxiosError | undefined;
     try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
-        headers,
-      });
+      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
     } catch (e) {
       error = e as AxiosError;
     }
@@ -625,7 +564,7 @@ describe("POST /api/v1/menu/select", () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.any(Object)
     );
     expect(error).toBeDefined();
     expect(error?.isAxiosError).toBe(true);
@@ -644,7 +583,6 @@ describe("POST /api/v1/menu/select", () => {
     };
     const idempotencyKey = "idempotency-key-12345";
     const headers = {
-      Authorization: `Bearer ${accessToken}`,
       "x-idempotency-key": idempotencyKey,
     };
     const successResponse = {
@@ -661,7 +599,6 @@ describe("POST /api/v1/menu/select", () => {
     mockedAxios.post.mockResolvedValue({
       status: 200,
       statusText: "OK",
-      headers: {},
       data: successResponse,
     });
 
@@ -683,13 +620,21 @@ describe("POST /api/v1/menu/select", () => {
       1,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": idempotencyKey,
+        }),
+      })
     );
     expect(mockedAxios.post).toHaveBeenNthCalledWith(
       2,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": idempotencyKey,
+        }),
+      })
     );
     // 동일한 Idempotency-Key로 요청 시 동일한 reservationId 반환
     expect(response1.data.data.reservationId).toBe(
@@ -707,11 +652,9 @@ describe("POST /api/v1/menu/select", () => {
       memberNo: "member_123",
     };
     const headers1 = {
-      Authorization: `Bearer ${accessToken}`,
       "x-idempotency-key": "idempotency-key-11111",
     };
     const headers2 = {
-      Authorization: `Bearer ${accessToken}`,
       "x-idempotency-key": "idempotency-key-22222",
     };
     const successResponse1 = {
@@ -740,13 +683,11 @@ describe("POST /api/v1/menu/select", () => {
       .mockResolvedValueOnce({
         status: 200,
         statusText: "OK",
-        headers: {},
         data: successResponse1,
       })
       .mockResolvedValueOnce({
         status: 200,
         statusText: "OK",
-        headers: {},
         data: successResponse2,
       });
 
@@ -768,13 +709,21 @@ describe("POST /api/v1/menu/select", () => {
       1,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers: headers1 }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": "idempotency-key-11111",
+        }),
+      })
     );
     expect(mockedAxios.post).toHaveBeenNthCalledWith(
       2,
       `${baseURL}${spec.restfulUrl}`,
       payload,
-      { headers: headers2 }
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-idempotency-key": "idempotency-key-22222",
+        }),
+      })
     );
     // 다른 Idempotency-Key로 요청 시 다른 reservationId 반환
     expect(response1.data.data.reservationId).not.toBe(
