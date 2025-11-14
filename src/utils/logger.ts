@@ -6,6 +6,9 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Types & Transport
+ * ────────────────────────────────────────────────────────────────────────── */
 export type LogLevel = "INFO" | "DEBUG";
 export interface LoggerTransport {
   info(msg: string): void;
@@ -33,6 +36,18 @@ export class ConsoleTransport implements LoggerTransport {
   }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Globals (test name)
+ * ────────────────────────────────────────────────────────────────────────── */
+let __currentTestName: string | undefined;
+export const setCurrentTestName = (name?: string) => {
+  __currentTestName = name;
+};
+const getCurrentTestNameGlobal = () => __currentTestName;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Defaults & Utils
+ * ────────────────────────────────────────────────────────────────────────── */
 const DEFAULT_SEP = "═".repeat(60);
 const DEFAULT_SUB_SEP = "─".repeat(60);
 
@@ -68,41 +83,116 @@ const formatData = (data: unknown): unknown => {
 const shortUrl = (url?: string) => url?.replace(/^https?:\/\/[^/]+/, "") ?? "";
 const shortTest = (name?: string) => name?.split(" > ").pop();
 
+const getLogFormat = () =>
+  (process.env.LOG_FORMAT ?? "json").toLowerCase() as "json" | "pretty";
+
+const MAX_BODY = Number(process.env.LOG_MAX_BODY ?? 0); // 0 = 제한 없음
+const maybeTruncate = (s: string) =>
+  MAX_BODY > 0 && s.length > MAX_BODY
+    ? s.slice(0, MAX_BODY) + " …(truncated)"
+    : s;
+
+const safeStringify = (value: unknown, space = 2) => {
+  const seen = new WeakSet();
+  const replacer = (_k: string, v: any) => {
+    if (typeof v === "bigint") return v.toString();
+    if (typeof v === "object" && v !== null) {
+      if (seen.has(v)) return "[Circular]";
+      seen.add(v);
+    }
+    return v;
+  };
+  try {
+    const s = JSON.stringify(value, replacer, space);
+    return space ? maybeTruncate(s) : s;
+  } catch {
+    try {
+      return String(value);
+    } catch {
+      return "[Unserializable]";
+    }
+  }
+};
+
 const formatLog = (
   level: LogLevel,
   type: "REQUEST" | "RESPONSE" | "ERROR",
   info: Record<string, unknown>,
   url?: string
 ) => {
-  const header = `[${level}] ${type}${
-    type === "RESPONSE" && typeof info.status === "string"
-      ? (info.status as string).startsWith("2")
+  const fmt = getLogFormat();
+
+  if (fmt === "json") {
+    const out = {
+      level,
+      type,
+      url_short: shortUrl(url || (info["url"] as string | undefined)),
+      url_full: (info["url"] as string | undefined) ?? url ?? "",
+      test: info["test"] ?? undefined,
+      ts: info["ts"] ?? new Date().toISOString(),
+      status: info["status"],
+      method: info["method"],
+      headers: info["headers"],
+      data: info["data"],
+      message: info["message"],
+      code: info["code"],
+      response: info["response"],
+      request: info["request"],
+    };
+    return safeStringify(out, 2);
+  }
+
+  // pretty: 사람 친화적 멀티라인
+  const statusStr = typeof info.status === "string" ? info.status : "";
+  const header =
+    `[${level}] ${type}` +
+    (type === "RESPONSE"
+      ? statusStr.startsWith("2")
         ? " ✓"
-        : (info.status as string).match(/^[45]/)
+        : /^[45]/.test(statusStr)
         ? " ✗"
         : " ○"
-      : ""
-  }`;
+      : "");
 
-  const fields = Object.entries(info)
-    .filter(([k]) => k !== "url" && k !== "test")
-    .map(([k, v]) => `${k[0].toUpperCase()}${k.slice(1)}: ${v as any}`);
+  // 요약 라인(헤더/데이터 제외)
+  const summaryLines: string[] = [];
+  for (const [k, v] of Object.entries(info)) {
+    if (k === "url" || k === "test" || k === "headers" || k === "data")
+      continue;
+    const label = k[0].toUpperCase() + k.slice(1);
+    if (v !== null && typeof v === "object") {
+      summaryLines.push(`${label}:\n${safeStringify(v, 2)}`);
+    } else if (v !== undefined) {
+      summaryLines.push(`${label}: ${String(v)}`);
+    }
+  }
 
   const test = info["test"] as string | undefined;
+  const resolvedUrl = shortUrl(url || (info["url"] as string | undefined));
 
-  return [
+  const blocks: string[] = [
     DEFAULT_SEP,
     header,
     DEFAULT_SEP,
-    ...fields,
-    `URL: ${shortUrl(url || (info["url"] as string | undefined))}`,
+    ...summaryLines,
+    `URL: ${resolvedUrl}`,
     ...(test ? [`Test: ${shortTest(test)}`] : []),
-    DEFAULT_SUB_SEP,
-    JSON.stringify(info, null, 2),
-    DEFAULT_SEP,
-  ].join("\n");
+  ];
+
+  if (info.headers !== undefined) {
+    blocks.push(DEFAULT_SUB_SEP, "Headers:", safeStringify(info.headers, 2));
+  }
+  if (info.data !== undefined) {
+    blocks.push(DEFAULT_SUB_SEP, "Data:", safeStringify(info.data, 2));
+  }
+
+  blocks.push(DEFAULT_SEP);
+  return blocks.join("\n");
 };
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * HttpLogger (엔진)
+ * ────────────────────────────────────────────────────────────────────────── */
 export class HttpLogger {
   private getLevel: () => LogLevel;
   private sanitizeHeaders: (h: Record<string, any>) => Record<string, any>;
@@ -119,7 +209,7 @@ export class HttpLogger {
   }
 
   private base(info: Record<string, unknown>) {
-    const test = this.getCurrentTestName?.();
+    const test = (this.getCurrentTestName ?? getCurrentTestNameGlobal)?.();
     return { ...info, ...(test ? { test } : {}), ts: this.now().toISOString() };
   }
 
@@ -180,8 +270,6 @@ export class HttpLogger {
   logError(error: any, config?: AxiosRequestConfig) {
     const level = this.getLevel();
     if (level === "INFO") {
-      // INFO 레벨에서는 에러만 찍되, 요청도 함께 남기고 싶다면 아래 주석 해제
-      // this.t.info(this.formatRequest(config as any));
       this.t.error(this.formatError(error, config));
     } else {
       this.t.error(this.formatError(error, config));
@@ -189,7 +277,9 @@ export class HttpLogger {
   }
 }
 
-/** Axios 인스턴스에 로거 부착 */
+/* ──────────────────────────────────────────────────────────────────────────
+ * Public API: axios 인스턴스/모킹 래핑
+ * ────────────────────────────────────────────────────────────────────────── */
 export const setupAxiosLogger = (
   axiosInstance: AxiosInstance,
   logger = new HttpLogger()
@@ -217,7 +307,6 @@ export const setupAxiosLogger = (
   );
 };
 
-/** Mocked axios(post/get/…)에 로거를 덧씌우기 (명시적 호출) */
 export const wrapMockedAxios = (
   mockedAxios: any,
   logger = new HttpLogger()
@@ -253,7 +342,6 @@ export const wrapMockedAxios = (
                     headers?: any;
                   }
             ) => {
-              // 비표준 모킹 응답 호환
               const response: AxiosResponse =
                 "status" in res && "data" in res
                   ? ({ ...res, config: { url } } as AxiosResponse)
@@ -284,23 +372,83 @@ export const wrapMockedAxios = (
   );
 };
 
-/** Vitest와 연결: 현재 테스트 이름을 로거에 주입할 수 있도록 헬퍼 제공 */
-export const withVitestContext = (logger: HttpLogger) => ({
-  beforeEach: (context: any) => {
-    const suiteNames = (s: any): string[] => {
-      const arr: string[] = [];
-      for (let cur = s; cur?.name; cur = cur.suite) arr.unshift(cur.name);
-      return arr;
-    };
-    const testName = context?.meta?.name || context?.task?.name;
-    const suites = suiteNames(context?.task?.suite);
-    const full = testName
-      ? suites.length
-        ? [...suites, testName].join(" > ")
-        : testName
-      : undefined;
+/* ──────────────────────────────────────────────────────────────────────────
+ * Vitest 자동 부트스트랩
+ * ────────────────────────────────────────────────────────────────────────── */
+type AnyFn = (...a: any[]) => any;
 
-    // 주입 방식: getCurrentTestName 콜백 교체
-    (logger as any).getCurrentTestName = () => full;
-  },
-});
+const getVitest = () => {
+  try {
+    return {
+      vi: (globalThis as any).vi,
+      beforeAll: (globalThis as any).beforeAll,
+      beforeEach: (globalThis as any).beforeEach,
+    };
+  } catch {
+    return { vi: undefined, beforeAll: undefined, beforeEach: undefined };
+  }
+};
+
+const ensureWrapped = async () => {
+  const { vi } = getVitest();
+  if (!vi) return;
+  const mocked = vi.mocked((await import("axios")).default, true);
+  const post = mocked?.post as AnyFn | undefined;
+  const wrapped = !!(post && (post as any).__isLoggerWrapped);
+  if (!wrapped && typeof post === "function") wrapMockedAxios(mocked);
+};
+
+export const installVitestAutoWrap = () => {
+  const { vi, beforeAll, beforeEach } = getVitest();
+  if (!vi || !beforeAll || !beforeEach) return;
+
+  if (!process.env.LOG_MODE) process.env.LOG_MODE = "info";
+
+  // axios 모킹 시 자동 재-래핑
+  const _mock = vi.mock.bind(vi);
+  vi.mock = ((...args: any[]) => {
+    const r = _mock(...args);
+    if (args[0] === "axios") ensureWrapped().catch(() => {});
+    return r;
+  }) as typeof vi.mock;
+
+  const _doMock = vi.doMock?.bind(vi) as AnyFn | undefined;
+  if (_doMock) {
+    vi.doMock = ((...args: any[]) => {
+      const r = _doMock(...args);
+      if (args[0] === "axios") ensureWrapped().catch(() => {});
+      return r;
+    }) as typeof vi.doMock;
+  }
+
+  // 테스트 이름 주입
+  const suitesOf = (suite: any): string[] => {
+    const arr: string[] = [];
+    for (let s = suite; s?.name; s = s.suite) arr.unshift(s.name);
+    return arr;
+  };
+  beforeEach((ctx: any) => {
+    const name = ctx?.meta?.name || ctx?.task?.name;
+    const suites = suitesOf(ctx?.task?.suite);
+    setCurrentTestName(suites.length ? [...suites, name].join(" > ") : name);
+  });
+
+  // 최초 1회 래핑 + clearAllMocks 이후 재-래핑
+  beforeAll(async () => {
+    await ensureWrapped();
+  });
+  const _clear = vi.clearAllMocks.bind(vi);
+  vi.clearAllMocks = function () {
+    const r = _clear();
+    ensureWrapped().catch(() => {});
+    return r;
+  };
+};
+
+// 자동 설치: Vitest 런타임이며 LOG_AUTOWRAP !== 'false' 이면 장착
+(() => {
+  const isVitest = !!(globalThis as any).vi;
+  const allow =
+    String(process.env.LOG_AUTOWRAP ?? "true").toLowerCase() !== "false";
+  if (isVitest && allow) installVitestAutoWrap();
+})();
