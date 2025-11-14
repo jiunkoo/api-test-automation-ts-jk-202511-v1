@@ -5,47 +5,59 @@ import type {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
-import { vi, beforeEach, beforeAll } from "vitest";
 
 export type LogLevel = "INFO" | "DEBUG";
+export interface LoggerTransport {
+  info(msg: string): void;
+  error(msg: string): void;
+  debug?(msg: string): void;
+}
 
-let currentTestName: string | undefined = undefined;
+export interface LoggerOptions {
+  getLevel?: () => LogLevel;
+  sanitizeHeaders?: (headers: Record<string, any>) => Record<string, any>;
+  now?: () => Date;
+  transport?: LoggerTransport;
+  getCurrentTestName?: () => string | undefined;
+}
 
-export const setCurrentTestName = (name: string | undefined): void => {
-  currentTestName = name;
-};
-
-const getSuiteNames = (suite: any): string[] => {
-  const suites: string[] = [];
-  for (let s = suite; s?.name; s = s.suite) {
-    suites.unshift(s.name);
+export class ConsoleTransport implements LoggerTransport {
+  info(msg: string) {
+    console.log(msg);
   }
-  return suites;
-};
-
-const getCurrentTestName = (): string | undefined => {
-  if (currentTestName) return currentTestName;
-  try {
-    const test =
-      (globalThis as any).__vitest__?.current ||
-      (globalThis as any).__vitest__?.activeTest;
-    if (test?.name) {
-      return [...getSuiteNames(test.suite), test.name].join(" > ");
-    }
-  } catch {}
-  return undefined;
-};
-
-export const getLogLevel = (): LogLevel => {
-  const logMode = process.env.LOG_MODE?.toLowerCase();
-  return logMode === "debug" ? "DEBUG" : "INFO";
-};
-
-const formatData = (data: any): any => {
-  if (data === undefined || data === null || typeof data !== "string") {
-    return data;
+  error(msg: string) {
+    console.error(msg);
   }
+  debug(msg: string) {
+    console.log(msg);
+  }
+}
 
+const DEFAULT_SEP = "═".repeat(60);
+const DEFAULT_SUB_SEP = "─".repeat(60);
+
+const defaultGetLevel = (): LogLevel =>
+  process.env.LOG_MODE?.toLowerCase() === "debug" ? "DEBUG" : "INFO";
+
+const defaultSanitizeHeaders = (
+  headers: Record<string, any>
+): Record<string, any> => {
+  if (!headers) return {};
+  if (process.env.LOG_SHOW_SENSITIVE?.toLowerCase() === "true") return headers;
+
+  const redacted = { ...headers };
+  const lower = Object.fromEntries(
+    Object.entries(redacted).map(([k, v]) => [k.toLowerCase(), [k, v] as const])
+  );
+  for (const key of ["authorization", "cookie", "x-api-key"]) {
+    const originalKey = lower[key]?.[0];
+    if (originalKey) redacted[originalKey] = "***REDACTED***";
+  }
+  return redacted;
+};
+
+const formatData = (data: unknown): unknown => {
+  if (typeof data !== "string") return data;
   try {
     return JSON.parse(data);
   } catch {
@@ -53,182 +65,212 @@ const formatData = (data: any): any => {
   }
 };
 
-const getShortTestName = (name: string | undefined) => name?.split(" > ").pop();
-
-const getShortUrl = (url: string | undefined) =>
-  url?.replace(/^https?:\/\/[^/]+/, "") || "";
-
-const SEP = "═".repeat(60);
-const SUB_SEP = "─".repeat(60);
-
-const buildLogInfo = (baseInfo: any) => {
-  const testName = getCurrentTestName();
-  return { ...baseInfo, ...(testName && { test: testName }) };
-};
+const shortUrl = (url?: string) => url?.replace(/^https?:\/\/[^/]+/, "") ?? "";
+const shortTest = (name?: string) => name?.split(" > ").pop();
 
 const formatLog = (
-  type: string,
-  emoji: string,
-  info: any,
+  level: LogLevel,
+  type: "REQUEST" | "RESPONSE" | "ERROR",
+  info: Record<string, unknown>,
   url?: string
-): string => {
-  const level = getLogLevel();
-  const header = emoji ? `[${level}] ${type} ${emoji}` : `[${level}] ${type}`;
-  const shortUrl = getShortUrl(url || info.url);
-  const shortTestName = getShortTestName(info.test);
+) => {
+  const header = `[${level}] ${type}${
+    type === "RESPONSE" && typeof info.status === "string"
+      ? (info.status as string).startsWith("2")
+        ? " ✓"
+        : (info.status as string).match(/^[45]/)
+        ? " ✗"
+        : " ○"
+      : ""
+  }`;
+
   const fields = Object.entries(info)
     .filter(([k]) => k !== "url" && k !== "test")
-    .map(([k, v]) => `${k[0].toUpperCase() + k.slice(1)}: ${v}`);
+    .map(([k, v]) => `${k[0].toUpperCase()}${k.slice(1)}: ${v as any}`);
+
+  const test = info["test"] as string | undefined;
 
   return [
-    SEP,
+    DEFAULT_SEP,
     header,
-    SEP,
+    DEFAULT_SEP,
     ...fields,
-    `URL: ${shortUrl}`,
-    ...(shortTestName ? [`Test: ${shortTestName}`] : []),
-    SUB_SEP,
+    `URL: ${shortUrl(url || (info["url"] as string | undefined))}`,
+    ...(test ? [`Test: ${shortTest(test)}`] : []),
+    DEFAULT_SUB_SEP,
     JSON.stringify(info, null, 2),
-    SEP,
+    DEFAULT_SEP,
   ].join("\n");
 };
 
-const formatRequest = (config: InternalAxiosRequestConfig): string => {
-  const { method, url, data, headers } = config;
-  return formatLog(
-    "REQUEST",
-    "",
-    buildLogInfo({
-      method: method?.toUpperCase(),
-      url,
-      headers: sanitizeHeaders(headers),
-      data: formatData(data),
-    }),
-    url
-  );
-};
+export class HttpLogger {
+  private getLevel: () => LogLevel;
+  private sanitizeHeaders: (h: Record<string, any>) => Record<string, any>;
+  private now: () => Date;
+  private t: LoggerTransport;
+  private getCurrentTestName?: () => string | undefined;
 
-const formatResponse = (response: AxiosResponse): string => {
-  const { status, statusText, data, headers, config } = response;
-  const emoji = status >= 200 && status < 300 ? "✓" : status >= 400 ? "✗" : "○";
-  return formatLog(
-    "RESPONSE",
-    emoji,
-    buildLogInfo({
-      status: `${status} ${statusText}`,
-      url: config.url,
-      headers: sanitizeHeaders(headers),
-      data: formatData(data),
-    }),
-    config.url
-  );
-};
-
-const formatError = (error: any, config?: AxiosRequestConfig): string => {
-  const info: any = buildLogInfo({
-    message: error.message,
-    ...(error.code && { code: error.code }),
-    url: config?.url,
-  });
-
-  if (error.response) {
-    const { status, statusText, data, headers } = error.response;
-    info.response = {
-      status,
-      statusText,
-      headers: sanitizeHeaders(headers),
-      data: formatData(data),
-    };
-  } else if (error.request) {
-    info.request = "No response received";
+  constructor(opts: LoggerOptions = {}) {
+    this.getLevel = opts.getLevel ?? defaultGetLevel;
+    this.sanitizeHeaders = opts.sanitizeHeaders ?? defaultSanitizeHeaders;
+    this.now = opts.now ?? (() => new Date());
+    this.t = opts.transport ?? new ConsoleTransport();
+    this.getCurrentTestName = opts.getCurrentTestName;
   }
 
-  return formatLog("ERROR", "✗", info, config?.url || "Unknown URL");
+  private base(info: Record<string, unknown>) {
+    const test = this.getCurrentTestName?.();
+    return { ...info, ...(test ? { test } : {}), ts: this.now().toISOString() };
+  }
+
+  formatRequest = (config: InternalAxiosRequestConfig): string => {
+    const { method, url, data, headers } = config;
+    const info = this.base({
+      method: method?.toUpperCase(),
+      url,
+      headers: this.sanitizeHeaders(headers as any),
+      data: formatData(data),
+    });
+    return formatLog(this.getLevel(), "REQUEST", info, url);
+  };
+
+  formatResponse = (response: AxiosResponse): string => {
+    const { status, statusText, data, headers, config } = response;
+    const info = this.base({
+      status: `${status} ${statusText}`,
+      url: config.url,
+      headers: this.sanitizeHeaders(headers as any),
+      data: formatData(data),
+    });
+    return formatLog(this.getLevel(), "RESPONSE", info, config.url);
+  };
+
+  formatError = (error: any, config?: AxiosRequestConfig): string => {
+    const base: Record<string, unknown> = this.base({
+      message: error?.message,
+      ...(error?.code ? { code: error.code } : {}),
+      url: config?.url,
+    });
+
+    if (error?.response) {
+      const { status, statusText, data, headers } =
+        error.response as AxiosResponse;
+      base.response = {
+        status,
+        statusText,
+        headers: this.sanitizeHeaders(headers as any),
+        data: formatData(data),
+      };
+    } else if (error?.request) {
+      base.request = "No response received";
+    }
+
+    return formatLog(this.getLevel(), "ERROR", base, config?.url);
+  };
+
+  logRequest(config: InternalAxiosRequestConfig) {
+    if (this.getLevel() === "DEBUG") this.t.debug?.(this.formatRequest(config));
+  }
+
+  logResponse(response: AxiosResponse) {
+    if (this.getLevel() === "DEBUG")
+      this.t.debug?.(this.formatResponse(response));
+  }
+
+  logError(error: any, config?: AxiosRequestConfig) {
+    const level = this.getLevel();
+    if (level === "INFO") {
+      // INFO 레벨에서는 에러만 찍되, 요청도 함께 남기고 싶다면 아래 주석 해제
+      // this.t.info(this.formatRequest(config as any));
+      this.t.error(this.formatError(error, config));
+    } else {
+      this.t.error(this.formatError(error, config));
+    }
+  }
+}
+
+/** Axios 인스턴스에 로거 부착 */
+export const setupAxiosLogger = (
+  axiosInstance: AxiosInstance,
+  logger = new HttpLogger()
+): void => {
+  axiosInstance.interceptors.request.use(
+    (config) => {
+      logger.logRequest(config as InternalAxiosRequestConfig);
+      return config;
+    },
+    (error) => {
+      logger.logError(error, error?.config);
+      return Promise.reject(error);
+    }
+  );
+
+  axiosInstance.interceptors.response.use(
+    (response) => {
+      logger.logResponse(response);
+      return response;
+    },
+    (error) => {
+      logger.logError(error, error?.config);
+      return Promise.reject(error);
+    }
+  );
 };
 
-const sanitizeHeaders = (headers: any): any => {
-  if (!headers) return {};
-  if (process.env.LOG_SHOW_SENSITIVE?.toLowerCase() === "true") return headers;
-
-  const sanitized = { ...headers };
-  ["authorization", "cookie", "x-api-key"].forEach((key) => {
-    const found = Object.keys(sanitized).find((k) => k.toLowerCase() === key);
-    if (found) sanitized[found] = "***REDACTED***";
-  });
-  return sanitized;
-};
-
-const createRequestConfig = (
-  method: string,
-  url: string,
-  data?: any,
-  config?: any
-): InternalAxiosRequestConfig =>
-  ({
-    method: method.toLowerCase(),
-    url,
-    data,
-    headers: config?.headers || {},
-  } as InternalAxiosRequestConfig);
-
-const createResponse = (
-  status: number,
-  statusText: string,
-  data: any,
-  url: string,
-  headers: any = {}
-): AxiosResponse =>
-  ({
-    status,
-    statusText,
-    data,
-    headers,
-    config: { url } as any,
-  } as AxiosResponse);
-
-export const wrapMockedAxios = (mockedAxios: any): void => {
-  const wrapMethod = (methodName: string) => {
-    const method = mockedAxios[methodName.toLowerCase()];
-    if (
-      !method ||
-      typeof method !== "function" ||
-      (method as any).__isLoggerWrapped
-    )
+/** Mocked axios(post/get/…)에 로거를 덧씌우기 (명시적 호출) */
+export const wrapMockedAxios = (
+  mockedAxios: any,
+  logger = new HttpLogger()
+): void => {
+  const wrapMethod = (
+    methodName: "POST" | "GET" | "PUT" | "DELETE" | "PATCH"
+  ) => {
+    const fn = mockedAxios[methodName.toLowerCase()];
+    if (!fn || typeof fn !== "function" || (fn as any).__isLoggerWrapped)
       return;
 
-    const wrapped = new Proxy(method, {
-      apply: (target, thisArg, args) => {
-        const [url, data, config] = args;
-        const reqConfig = createRequestConfig(methodName, url, data, config);
-        const isDebug = getLogLevel() === "DEBUG";
+    const wrapped = new Proxy(fn, {
+      apply: (target, thisArg, args: [string, any?, AxiosRequestConfig?]) => {
+        const [url, data, cfg] = args;
+        const req: InternalAxiosRequestConfig = {
+          method: methodName.toLowerCase() as any,
+          url,
+          data,
+          headers: (cfg?.headers ?? {}) as any,
+        } as InternalAxiosRequestConfig;
 
-        if (isDebug) console.log(formatRequest(reqConfig));
-
+        logger.logRequest(req);
         return target
           .apply(thisArg, args)
-          .then((response: any) => {
-            if (isDebug && response) {
-              console.log(
-                formatResponse(
-                  createResponse(
-                    response.status || 200,
-                    response.statusText || "OK",
-                    response.data,
-                    url,
-                    response.headers || {}
-                  )
-                )
-              );
+          .then(
+            (
+              res:
+                | AxiosResponse
+                | {
+                    status?: number;
+                    statusText?: string;
+                    data?: any;
+                    headers?: any;
+                  }
+            ) => {
+              // 비표준 모킹 응답 호환
+              const response: AxiosResponse =
+                "status" in res && "data" in res
+                  ? ({ ...res, config: { url } } as AxiosResponse)
+                  : ({
+                      status: 200,
+                      statusText: "OK",
+                      data: res,
+                      headers: {},
+                      config: { url },
+                    } as AxiosResponse);
+              logger.logResponse(response);
+              return res;
             }
-            return response;
-          })
-          .catch((error: any) => {
-            const level = getLogLevel();
-            if (level === "INFO" || level === "DEBUG") {
-              if (level === "INFO") console.log(formatRequest(reqConfig));
-              console.error(formatError(error, reqConfig));
-            }
-            throw error;
+          )
+          .catch((err: any) => {
+            logger.logError(err, req);
+            throw err;
           });
       },
     });
@@ -237,68 +279,28 @@ export const wrapMockedAxios = (mockedAxios: any): void => {
     mockedAxios[methodName.toLowerCase()] = wrapped;
   };
 
-  ["POST", "GET", "PUT", "DELETE", "PATCH"].forEach(wrapMethod);
-};
-
-export const setupAxiosLogger = (
-  axiosInstance: AxiosInstance,
-  logLevel: LogLevel = getLogLevel()
-): void => {
-  const isDebug = logLevel === "DEBUG";
-
-  axiosInstance.interceptors.request.use(
-    (config) => {
-      if (isDebug) console.log(formatRequest(config));
-      return config;
-    },
-    (error) => {
-      console.error(formatError(error, error.config));
-      return Promise.reject(error);
-    }
-  );
-
-  axiosInstance.interceptors.response.use(
-    (response) => {
-      if (isDebug) console.log(formatResponse(response));
-      return response;
-    },
-    (error) => {
-      console.error(formatError(error, error.config));
-      return Promise.reject(error);
-    }
+  ["POST", "GET", "PUT", "DELETE", "PATCH"].forEach((m) =>
+    wrapMethod(m as any)
   );
 };
 
-if (
-  typeof vi !== "undefined" &&
-  typeof beforeEach !== "undefined" &&
-  typeof beforeAll !== "undefined"
-) {
-  beforeEach((context) => {
-    const testName = (context as any).meta?.name || (context as any).task?.name;
-    if (testName) {
-      const suites = getSuiteNames((context as any).task?.suite);
-      setCurrentTestName(
-        suites.length ? [...suites, testName].join(" > ") : testName
-      );
-    }
-  });
+/** Vitest와 연결: 현재 테스트 이름을 로거에 주입할 수 있도록 헬퍼 제공 */
+export const withVitestContext = (logger: HttpLogger) => ({
+  beforeEach: (context: any) => {
+    const suiteNames = (s: any): string[] => {
+      const arr: string[] = [];
+      for (let cur = s; cur?.name; cur = cur.suite) arr.unshift(cur.name);
+      return arr;
+    };
+    const testName = context?.meta?.name || context?.task?.name;
+    const suites = suiteNames(context?.task?.suite);
+    const full = testName
+      ? suites.length
+        ? [...suites, testName].join(" > ")
+        : testName
+      : undefined;
 
-  const wrapAxios = async () => {
-    try {
-      const mockedAxios = vi.mocked((await import("axios")).default, true);
-      if (mockedAxios && typeof mockedAxios.post === "function") {
-        wrapMockedAxios(mockedAxios);
-      }
-    } catch {}
-  };
-
-  const originalClearAllMocks = vi.clearAllMocks;
-  vi.clearAllMocks = function () {
-    originalClearAllMocks.call(this);
-    wrapAxios().catch(() => {});
-    return this;
-  };
-
-  beforeAll(wrapAxios);
-}
+    // 주입 방식: getCurrentTestName 콜백 교체
+    (logger as any).getCurrentTestName = () => full;
+  },
+});
