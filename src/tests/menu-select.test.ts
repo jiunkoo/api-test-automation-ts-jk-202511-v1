@@ -378,7 +378,7 @@ describe("POST /api/v1/menu/select", () => {
       shopId: "shop_001",
       memberNo: "member_123",
     };
-    const headers = {};
+    const headers = { "x-skip-auth": true };
     const errorResponse = spec.responses["401"].example;
     mockedAxios.post.mockRejectedValueOnce({
       isAxiosError: true,

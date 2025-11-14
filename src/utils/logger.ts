@@ -15,15 +15,6 @@ export interface LoggerTransport {
   error(msg: string): void;
   debug?(msg: string): void;
 }
-
-export interface LoggerOptions {
-  getLevel?: () => LogLevel;
-  sanitizeHeaders?: (headers: Record<string, any>) => Record<string, any>;
-  now?: () => Date;
-  transport?: LoggerTransport;
-  getCurrentTestName?: () => string | undefined;
-}
-
 export class ConsoleTransport implements LoggerTransport {
   info(msg: string) {
     console.log(msg);
@@ -37,41 +28,68 @@ export class ConsoleTransport implements LoggerTransport {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Globals (test name)
+ * Test name injection (opt-in from bootstrap)
  * ────────────────────────────────────────────────────────────────────────── */
 let __currentTestName: string | undefined;
 export const setCurrentTestName = (name?: string) => {
   __currentTestName = name;
 };
-const getCurrentTestNameGlobal = () => __currentTestName;
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Defaults & Utils
  * ────────────────────────────────────────────────────────────────────────── */
-const DEFAULT_SEP = "═".repeat(60);
-const DEFAULT_SUB_SEP = "─".repeat(60);
+const getLevelDefault = (): LogLevel =>
+  String(process.env.LOG_MODE ?? "info").toLowerCase() === "debug"
+    ? "DEBUG"
+    : "INFO";
+const getFormat = () =>
+  (process.env.LOG_FORMAT ?? "json").toLowerCase() as "json" | "pretty";
+const MAX_BODY = Number(process.env.LOG_MAX_BODY ?? 0); // 0=unlimited
 
-const defaultGetLevel = (): LogLevel =>
-  process.env.LOG_MODE?.toLowerCase() === "debug" ? "DEBUG" : "INFO";
+const maybeTruncate = (s: string) =>
+  MAX_BODY > 0 && s.length > MAX_BODY
+    ? s.slice(0, MAX_BODY) + " …(truncated)"
+    : s;
 
-const defaultSanitizeHeaders = (
-  headers: Record<string, any>
-): Record<string, any> => {
-  if (!headers) return {};
-  if (process.env.LOG_SHOW_SENSITIVE?.toLowerCase() === "true") return headers;
-
-  const redacted = { ...headers };
-  const lower = Object.fromEntries(
-    Object.entries(redacted).map(([k, v]) => [k.toLowerCase(), [k, v] as const])
-  );
-  for (const key of ["authorization", "cookie", "x-api-key"]) {
-    const originalKey = lower[key]?.[0];
-    if (originalKey) redacted[originalKey] = "***REDACTED***";
+const safeStringify = (val: unknown, space = 2) => {
+  const seen = new WeakSet();
+  const replacer = (_k: string, v: any) => {
+    if (typeof v === "bigint") return v.toString();
+    if (v && typeof v === "object") {
+      if (seen.has(v)) return "[Circular]";
+      seen.add(v);
+    }
+    return v;
+  };
+  try {
+    const s = JSON.stringify(val, replacer, space);
+    return space ? maybeTruncate(s) : s;
+  } catch {
+    try {
+      return String(val);
+    } catch {
+      return "[Unserializable]";
+    }
   }
-  return redacted;
 };
 
-const formatData = (data: unknown): unknown => {
+const redactHeaders = (headers: Record<string, any>) => {
+  if (!headers) return {};
+  if (
+    String(process.env.LOG_SHOW_SENSITIVE ?? "false").toLowerCase() === "true"
+  )
+    return headers;
+  const out = { ...headers };
+  const lower = Object.fromEntries(
+    Object.entries(out).map(([k, v]) => [k.toLowerCase(), k])
+  );
+  for (const key of ["authorization", "cookie", "x-api-key"]) {
+    const original = lower[key];
+    if (original) out[original] = "***REDACTED***";
+  }
+  return out;
+};
+const formatData = (data: unknown) => {
   if (typeof data !== "string") return data;
   try {
     return JSON.parse(data);
@@ -79,302 +97,215 @@ const formatData = (data: unknown): unknown => {
     return data;
   }
 };
+const shortUrl = (u?: string) => u?.replace(/^https?:\/\/[^/]+/, "") ?? "";
+const shortTest = (t?: string) => t?.split(" > ").pop();
 
-const shortUrl = (url?: string) => url?.replace(/^https?:\/\/[^/]+/, "") ?? "";
-const shortTest = (name?: string) => name?.split(" > ").pop();
-
-const getLogFormat = () =>
-  (process.env.LOG_FORMAT ?? "json").toLowerCase() as "json" | "pretty";
-
-const MAX_BODY = Number(process.env.LOG_MAX_BODY ?? 0); // 0 = 제한 없음
-const maybeTruncate = (s: string) =>
-  MAX_BODY > 0 && s.length > MAX_BODY
-    ? s.slice(0, MAX_BODY) + " …(truncated)"
-    : s;
-
-const safeStringify = (value: unknown, space = 2) => {
-  const seen = new WeakSet();
-  const replacer = (_k: string, v: any) => {
-    if (typeof v === "bigint") return v.toString();
-    if (typeof v === "object" && v !== null) {
-      if (seen.has(v)) return "[Circular]";
-      seen.add(v);
-    }
-    return v;
-  };
-  try {
-    const s = JSON.stringify(value, replacer, space);
-    return space ? maybeTruncate(s) : s;
-  } catch {
-    try {
-      return String(value);
-    } catch {
-      return "[Unserializable]";
-    }
-  }
-};
-
-const formatLog = (
-  level: LogLevel,
-  type: "REQUEST" | "RESPONSE" | "ERROR",
-  info: Record<string, unknown>,
-  url?: string
-) => {
-  const fmt = getLogFormat();
-
-  if (fmt === "json") {
-    const out = {
-      level,
-      type,
-      url_short: shortUrl(url || (info["url"] as string | undefined)),
-      url_full: (info["url"] as string | undefined) ?? url ?? "",
-      test: info["test"] ?? undefined,
-      ts: info["ts"] ?? new Date().toISOString(),
-      status: info["status"],
-      method: info["method"],
-      headers: info["headers"],
-      data: info["data"],
-      message: info["message"],
-      code: info["code"],
-      response: info["response"],
-      request: info["request"],
-    };
-    return safeStringify(out, 2);
-  }
-
-  // pretty: 사람 친화적 멀티라인
-  const statusStr = typeof info.status === "string" ? info.status : "";
-  const header =
-    `[${level}] ${type}` +
-    (type === "RESPONSE"
-      ? statusStr.startsWith("2")
-        ? " ✓"
-        : /^[45]/.test(statusStr)
-        ? " ✗"
-        : " ○"
-      : "");
-
-  // 요약 라인(헤더/데이터 제외)
-  const summaryLines: string[] = [];
-  for (const [k, v] of Object.entries(info)) {
-    if (k === "url" || k === "test" || k === "headers" || k === "data")
-      continue;
-    const label = k[0].toUpperCase() + k.slice(1);
-    if (v !== null && typeof v === "object") {
-      summaryLines.push(`${label}:\n${safeStringify(v, 2)}`);
-    } else if (v !== undefined) {
-      summaryLines.push(`${label}: ${String(v)}`);
-    }
-  }
-
-  const test = info["test"] as string | undefined;
-  const resolvedUrl = shortUrl(url || (info["url"] as string | undefined));
-
-  const blocks: string[] = [
-    DEFAULT_SEP,
-    header,
-    DEFAULT_SEP,
-    ...summaryLines,
-    `URL: ${resolvedUrl}`,
-    ...(test ? [`Test: ${shortTest(test)}`] : []),
-  ];
-
-  if (info.headers !== undefined) {
-    blocks.push(DEFAULT_SUB_SEP, "Headers:", safeStringify(info.headers, 2));
-  }
-  if (info.data !== undefined) {
-    blocks.push(DEFAULT_SUB_SEP, "Data:", safeStringify(info.data, 2));
-  }
-
-  blocks.push(DEFAULT_SEP);
-  return blocks.join("\n");
-};
-
-/* ──────────────────────────────────────────────────────────────────────────
- * HttpLogger (엔진)
- * ────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+ * HttpLogger
+ * ───────────────────────────────────────────────────────── */
 export class HttpLogger {
-  private getLevel: () => LogLevel;
-  private sanitizeHeaders: (h: Record<string, any>) => Record<string, any>;
-  private now: () => Date;
-  private t: LoggerTransport;
-  private getCurrentTestName?: () => string | undefined;
-
-  constructor(opts: LoggerOptions = {}) {
-    this.getLevel = opts.getLevel ?? defaultGetLevel;
-    this.sanitizeHeaders = opts.sanitizeHeaders ?? defaultSanitizeHeaders;
-    this.now = opts.now ?? (() => new Date());
-    this.t = opts.transport ?? new ConsoleTransport();
-    this.getCurrentTestName = opts.getCurrentTestName;
-  }
+  constructor(
+    private readonly t: LoggerTransport = new ConsoleTransport(),
+    private readonly getLevel = getLevelDefault,
+    private readonly now: () => Date = () => new Date()
+  ) {}
 
   private base(info: Record<string, unknown>) {
-    const test = (this.getCurrentTestName ?? getCurrentTestNameGlobal)?.();
-    return { ...info, ...(test ? { test } : {}), ts: this.now().toISOString() };
+    return {
+      ts: this.now().toISOString(),
+      ...(__currentTestName ? { test: __currentTestName } : {}),
+      ...info,
+    };
   }
 
-  formatRequest = (config: InternalAxiosRequestConfig): string => {
-    const { method, url, data, headers } = config;
-    const info = this.base({
-      method: method?.toUpperCase(),
-      url,
-      headers: this.sanitizeHeaders(headers as any),
-      data: formatData(data),
-    });
-    return formatLog(this.getLevel(), "REQUEST", info, url);
-  };
+  private format(
+    type: "REQUEST" | "RESPONSE" | "ERROR",
+    info: Record<string, unknown>,
+    url?: string
+  ) {
+    const fmt = getFormat();
+    const level = this.getLevel();
 
-  formatResponse = (response: AxiosResponse): string => {
-    const { status, statusText, data, headers, config } = response;
-    const info = this.base({
-      status: `${status} ${statusText}`,
-      url: config.url,
-      headers: this.sanitizeHeaders(headers as any),
-      data: formatData(data),
-    });
-    return formatLog(this.getLevel(), "RESPONSE", info, config.url);
-  };
-
-  formatError = (error: any, config?: AxiosRequestConfig): string => {
-    const base: Record<string, unknown> = this.base({
-      message: error?.message,
-      ...(error?.code ? { code: error.code } : {}),
-      url: config?.url,
-    });
-
-    if (error?.response) {
-      const { status, statusText, data, headers } =
-        error.response as AxiosResponse;
-      base.response = {
-        status,
-        statusText,
-        headers: this.sanitizeHeaders(headers as any),
-        data: formatData(data),
+    if (fmt === "json") {
+      const out = {
+        level,
+        type,
+        url_short: shortUrl(url || (info["url"] as string | undefined)),
+        url_full: (info["url"] as string | undefined) ?? url ?? "",
+        test: info["test"],
+        ts: info["ts"],
+        status: info["status"],
+        method: info["method"],
+        headers: info["headers"],
+        data: info["data"],
+        message: info["message"],
+        code: info["code"],
+        response: info["response"],
+        request: info["request"],
       };
-    } else if (error?.request) {
-      base.request = "No response received";
+      return safeStringify(out, 2);
     }
 
-    return formatLog(this.getLevel(), "ERROR", base, config?.url);
-  };
+    const status = typeof info.status === "string" ? info.status : "";
+    const mark =
+      type === "RESPONSE"
+        ? status.startsWith("2")
+          ? " ✓"
+          : /^[45]/.test(status)
+          ? " ✗"
+          : " ○"
+        : "";
+    const SEP = "═".repeat(60),
+      SUB = "─".repeat(60);
+    const lines: string[] = [SEP, `[${level}] ${type}${mark}`, SEP];
+
+    for (const [k, v] of Object.entries(info)) {
+      if (["headers", "data", "url", "test"].includes(k)) continue;
+      const label = k[0].toUpperCase() + k.slice(1);
+      if (v && typeof v === "object")
+        lines.push(`${label}:\n${safeStringify(v, 2)}`);
+      else if (v !== undefined) lines.push(`${label}: ${String(v)}`);
+    }
+
+    const urlShort = shortUrl(url || (info["url"] as string | undefined));
+    if (urlShort) lines.push(`URL: ${urlShort}`);
+    const test = info["test"] as string | undefined;
+    if (test) lines.push(`Test: ${shortTest(test)}`);
+
+    if (info.headers !== undefined) {
+      lines.push(SUB, "Headers:", safeStringify(info.headers, 2));
+    }
+    if (info.data !== undefined) {
+      lines.push(SUB, "Data:", safeStringify(info.data, 2));
+    }
+    lines.push(SEP);
+    return lines.join("\n");
+  }
 
   logRequest(config: InternalAxiosRequestConfig) {
-    if (this.getLevel() === "DEBUG") this.t.debug?.(this.formatRequest(config));
+    if (this.getLevel() !== "DEBUG") return;
+    const info = this.base({
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      headers: redactHeaders(config.headers as any),
+      data: formatData(config.data),
+    });
+    this.t.debug?.(this.format("REQUEST", info, config.url));
   }
 
-  logResponse(response: AxiosResponse) {
-    if (this.getLevel() === "DEBUG")
-      this.t.debug?.(this.formatResponse(response));
+  logResponse(resp: AxiosResponse) {
+    if (this.getLevel() !== "DEBUG") return;
+    const info = this.base({
+      status: `${resp.status} ${resp.statusText}`,
+      url: resp.config?.url,
+      headers: redactHeaders(resp.headers as any),
+      data: formatData(resp.data),
+    });
+    this.t.debug?.(this.format("RESPONSE", info, resp.config?.url));
   }
 
-  logError(error: any, config?: AxiosRequestConfig) {
-    const level = this.getLevel();
-    if (level === "INFO") {
-      this.t.error(this.formatError(error, config));
-    } else {
-      this.t.error(this.formatError(error, config));
+  logError(err: any, cfg?: AxiosRequestConfig) {
+    const info: Record<string, unknown> = this.base({
+      message: err?.message,
+      ...(err?.code ? { code: err.code } : {}),
+      url: cfg?.url,
+    });
+    if (err?.response) {
+      const r: AxiosResponse = err.response;
+      info.response = {
+        status: r.status,
+        statusText: r.statusText,
+        headers: redactHeaders(r.headers as any),
+        data: formatData(r.data),
+      };
+    } else if (err?.request) {
+      info.request = "No response received";
     }
+    this.t.error(this.format("ERROR", info, cfg?.url));
   }
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
- * Public API: axios 인스턴스/모킹 래핑
- * ────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+ * Public API
+ * ───────────────────────────────────────────────────────── */
 export const setupAxiosLogger = (
   axiosInstance: AxiosInstance,
   logger = new HttpLogger()
-): void => {
+) => {
   axiosInstance.interceptors.request.use(
-    (config) => {
-      logger.logRequest(config as InternalAxiosRequestConfig);
-      return config;
+    (cfg) => {
+      logger.logRequest(cfg as InternalAxiosRequestConfig);
+      return cfg;
     },
-    (error) => {
-      logger.logError(error, error?.config);
-      return Promise.reject(error);
+    (err) => {
+      logger.logError(err, err?.config);
+      return Promise.reject(err);
     }
   );
-
   axiosInstance.interceptors.response.use(
-    (response) => {
-      logger.logResponse(response);
-      return response;
+    (res) => {
+      logger.logResponse(res);
+      return res;
     },
-    (error) => {
-      logger.logError(error, error?.config);
-      return Promise.reject(error);
+    (err) => {
+      logger.logError(err, err?.config);
+      return Promise.reject(err);
     }
   );
 };
 
-export const wrapMockedAxios = (
+export const wrapMockedAxiosLogger = (
   mockedAxios: any,
   logger = new HttpLogger()
-): void => {
-  const wrapMethod = (
-    methodName: "POST" | "GET" | "PUT" | "DELETE" | "PATCH"
-  ) => {
-    const fn = mockedAxios[methodName.toLowerCase()];
+) => {
+  const wrap = (name: "post" | "get" | "put" | "delete" | "patch") => {
+    const fn = mockedAxios[name];
     if (!fn || typeof fn !== "function" || (fn as any).__isLoggerWrapped)
       return;
 
     const wrapped = new Proxy(fn, {
-      apply: (target, thisArg, args: [string, any?, AxiosRequestConfig?]) => {
+      apply(target, thisArg, args: [string, any?, AxiosRequestConfig?]) {
         const [url, data, cfg] = args;
-        const req: InternalAxiosRequestConfig = {
-          method: methodName.toLowerCase() as any,
+        logger.logRequest({
+          method: name,
           url,
           data,
           headers: (cfg?.headers ?? {}) as any,
-        } as InternalAxiosRequestConfig;
+        } as any);
 
-        logger.logRequest(req);
         return target
           .apply(thisArg, args)
-          .then(
-            (
-              res:
-                | AxiosResponse
-                | {
-                    status?: number;
-                    statusText?: string;
-                    data?: any;
-                    headers?: any;
-                  }
-            ) => {
-              const response: AxiosResponse =
-                "status" in res && "data" in res
-                  ? ({ ...res, config: { url } } as AxiosResponse)
-                  : ({
-                      status: 200,
-                      statusText: "OK",
-                      data: res,
-                      headers: {},
-                      config: { url },
-                    } as AxiosResponse);
-              logger.logResponse(response);
-              return res;
-            }
-          )
+          .then((res: any) => {
+            const response: AxiosResponse =
+              res && "status" in res && "data" in res
+                ? ({ ...res, config: { url } } as AxiosResponse)
+                : ({
+                    status: 200,
+                    statusText: "OK",
+                    data: res,
+                    headers: {},
+                    config: { url },
+                  } as AxiosResponse);
+            logger.logResponse(response);
+            return res;
+          })
           .catch((err: any) => {
-            logger.logError(err, req);
+            logger.logError(err, { url } as any);
             throw err;
           });
       },
     });
 
     (wrapped as any).__isLoggerWrapped = true;
-    mockedAxios[methodName.toLowerCase()] = wrapped;
+    mockedAxios[name] = wrapped;
   };
 
-  ["POST", "GET", "PUT", "DELETE", "PATCH"].forEach((m) =>
-    wrapMethod(m as any)
-  );
+  ["post", "get", "put", "delete", "patch"].forEach((m) => wrap(m as any));
 };
 
-/* ──────────────────────────────────────────────────────────────────────────
- * Vitest 자동 부트스트랩
- * ────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+ * Vitest auto-wrap (unified)
+ * ───────────────────────────────────────────────────────── */
 type AnyFn = (...a: any[]) => any;
 
 const getVitest = () => {
@@ -389,66 +320,49 @@ const getVitest = () => {
   }
 };
 
-const ensureWrapped = async () => {
+const ensureLoggerWrapped = async () => {
   const { vi } = getVitest();
   if (!vi) return;
   const mocked = vi.mocked((await import("axios")).default, true);
   const post = mocked?.post as AnyFn | undefined;
-  const wrapped = !!(post && (post as any).__isLoggerWrapped);
-  if (!wrapped && typeof post === "function") wrapMockedAxios(mocked);
+  const already = !!(post && (post as any).__isLoggerWrapped);
+  if (!already && typeof post === "function") {
+    wrapMockedAxiosLogger(mocked);
+  }
 };
 
-export const installVitestAutoWrap = () => {
+export const installLoggerAutoWrap = () => {
   const { vi, beforeAll, beforeEach } = getVitest();
   if (!vi || !beforeAll || !beforeEach) return;
 
-  if (!process.env.LOG_MODE) process.env.LOG_MODE = "info";
-
-  // axios 모킹 시 자동 재-래핑
-  const _mock = vi.mock.bind(vi);
-  vi.mock = ((...args: any[]) => {
-    const r = _mock(...args);
-    if (args[0] === "axios") ensureWrapped().catch(() => {});
-    return r;
-  }) as typeof vi.mock;
-
-  const _doMock = vi.doMock?.bind(vi) as AnyFn | undefined;
-  if (_doMock) {
-    vi.doMock = ((...args: any[]) => {
-      const r = _doMock(...args);
-      if (args[0] === "axios") ensureWrapped().catch(() => {});
-      return r;
-    }) as typeof vi.doMock;
-  }
-
-  // 테스트 이름 주입
-  const suitesOf = (suite: any): string[] => {
-    const arr: string[] = [];
-    for (let s = suite; s?.name; s = s.suite) arr.unshift(s.name);
-    return arr;
-  };
-  beforeEach((ctx: any) => {
-    const name = ctx?.meta?.name || ctx?.task?.name;
-    const suites = suitesOf(ctx?.task?.suite);
-    setCurrentTestName(suites.length ? [...suites, name].join(" > ") : name);
-  });
-
-  // 최초 1회 래핑 + clearAllMocks 이후 재-래핑
   beforeAll(async () => {
-    await ensureWrapped();
+    await ensureLoggerWrapped();
+    queueMicrotask(() => {
+      void ensureLoggerWrapped();
+    });
   });
-  const _clear = vi.clearAllMocks.bind(vi);
-  vi.clearAllMocks = function () {
-    const r = _clear();
-    ensureWrapped().catch(() => {});
-    return r;
-  };
+
+  beforeEach(async () => {
+    await ensureLoggerWrapped();
+  });
+
+  const _clear = vi.clearAllMocks?.bind(vi);
+  if (_clear && !(vi as any).__loggerPatchedClear) {
+    (vi as any).__loggerPatchedClear = true;
+    vi.clearAllMocks = function () {
+      const r = _clear();
+      void ensureLoggerWrapped();
+      queueMicrotask(() => {
+        void ensureLoggerWrapped();
+      });
+      return r;
+    };
+  }
 };
 
-// 자동 설치: Vitest 런타임이며 LOG_AUTOWRAP !== 'false' 이면 장착
+const LOG_AUTOWRAP =
+  String(process.env.LOG_AUTOWRAP ?? "true").toLowerCase() !== "false";
 (() => {
   const isVitest = !!(globalThis as any).vi;
-  const allow =
-    String(process.env.LOG_AUTOWRAP ?? "true").toLowerCase() !== "false";
-  if (isVitest && allow) installVitestAutoWrap();
+  if (isVitest && LOG_AUTOWRAP) installLoggerAutoWrap();
 })();
