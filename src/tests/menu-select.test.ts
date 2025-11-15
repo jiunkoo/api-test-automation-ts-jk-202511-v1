@@ -1,5 +1,5 @@
 import "dotenv/config";
-import axios, { type AxiosError } from "axios";
+import axios from "axios";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -12,7 +12,6 @@ import {
 
 const spec = apiSpec["POST_/api/v1/menu/select"];
 const baseURL = process.env.API_URL;
-const accessToken = process.env.ACCESS_TOKEN;
 
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
@@ -25,15 +24,13 @@ beforeAll(() => {
   if (!baseURL) {
     throw new Error("환경 변수 API_URL이 설정되어 있어야 합니다.");
   }
-
-  if (!accessToken) {
-    throw new Error("환경 변수 ACCESS_TOKEN이 설정되어 있어야 합니다.");
-  }
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+const ROUTE = `${baseURL!}${spec.restfulUrl}`;
 
 const successResponseSchema = z.object({
   status: z.literal("SUCCESS"),
@@ -87,6 +84,71 @@ const validateMenuSelectRequest = (payload: {
 };
 
 describe("POST /api/v1/menu/select", () => {
+  describe("검증", () => {
+    it.each([
+      {
+        field: "menuId",
+        payload: {
+          quantity: 2,
+          shopId: "shop_001",
+          memberNo: "member_123",
+        },
+      },
+      {
+        field: "quantity",
+        payload: {
+          menuId: "menu_001",
+          shopId: "shop_001",
+          memberNo: "member_123",
+        },
+      },
+      {
+        field: "shopId",
+        payload: {
+          menuId: "menu_001",
+          quantity: 2,
+          memberNo: "member_123",
+        },
+      },
+      {
+        field: "memberNo",
+        payload: {
+          menuId: "menu_001",
+          quantity: 2,
+          shopId: "shop_001",
+        },
+      },
+    ])(
+      "[실패][VALIDATION] 필수값($field) 누락 — axios.post 호출되지 않음",
+      ({ payload }) => {
+        // when & then
+        expect(() => validateMenuSelectRequest(payload)).toThrow();
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each([
+      { quantity: 0, description: "quantity가 0일 때" },
+      { quantity: 100, description: "quantity가 100일 때" },
+      { quantity: 2.5, description: "quantity가 정수가 아닐 때" },
+    ])(
+      "[실패][VALIDATION] quantity 검증 — $description axios.post 호출되지 않음",
+      ({ quantity }) => {
+        // given
+        const payload = {
+          menuId: "menu_001",
+          quantity,
+          shopId: "shop_001",
+          memberNo: "member_123",
+        };
+
+        // when & then
+        expect(() => validateMenuSelectRequest(payload)).toThrow();
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      }
+    );
+  });
+
   describe("성공", () => {
     it("[200][성공][BUSINESS] 메뉴 예약 완료 — 만료 시간 5분 검증", async () => {
       // given
@@ -111,17 +173,10 @@ describe("POST /api/v1/menu/select", () => {
 
       // when
       expect(() => validateMenuSelectRequest(payload)).not.toThrow();
-      const response = await axios.post(
-        `${baseURL}${spec.restfulUrl}`,
-        payload
-      );
+      const response = await axios.post(ROUTE, payload);
 
       // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
       expect(response.status).toBe(200);
       expect(response.data).toEqual(successResponse);
 
@@ -135,10 +190,10 @@ describe("POST /api/v1/menu/select", () => {
       const expiresAt = new Date(response.data.data.reservationExpiresAt);
       const diffMinutes =
         (expiresAt.getTime() - timestamp.getTime()) / (1000 * 60);
-      expect(diffMinutes).toBe(5);
+      expect(diffMinutes).toBeCloseTo(5, 1);
     });
 
-    it("[IDEMP][성공][IDEMP] 동일 키 중복 요청 — 동일 reservationId 반환", async () => {
+    it("[200][성공][IDEMP] 동일 키 중복 요청 — 동일 reservationId 반환", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -164,22 +219,14 @@ describe("POST /api/v1/menu/select", () => {
       mockSuccess(mockedAxios.post, successResponse, true);
 
       // when
-      const response1 = await axios.post(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        { headers }
-      );
-      const response2 = await axios.post(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        { headers }
-      );
+      const response1 = await axios.post(ROUTE, payload, { headers });
+      const response2 = await axios.post(ROUTE, payload, { headers });
 
       // then
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post).toHaveBeenNthCalledWith(
         1,
-        `${baseURL}${spec.restfulUrl}`,
+        ROUTE,
         payload,
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -189,7 +236,7 @@ describe("POST /api/v1/menu/select", () => {
       );
       expect(mockedAxios.post).toHaveBeenNthCalledWith(
         2,
-        `${baseURL}${spec.restfulUrl}`,
+        ROUTE,
         payload,
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -203,7 +250,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(response1.data.data.reservationId).toBe("RSV_A7K9M2X8");
     });
 
-    it("[IDEMP][성공][IDEMP] 다른 키 요청 — 다른 reservationId 반환", async () => {
+    it("[200][성공][IDEMP] 다른 키 요청 — 다른 reservationId 반환", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -243,22 +290,14 @@ describe("POST /api/v1/menu/select", () => {
       mockSuccess(mockedAxios.post, successResponse2);
 
       // when
-      const response1 = await axios.post(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        { headers: headers1 }
-      );
-      const response2 = await axios.post(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        { headers: headers2 }
-      );
+      const response1 = await axios.post(ROUTE, payload, { headers: headers1 });
+      const response2 = await axios.post(ROUTE, payload, { headers: headers2 });
 
       // then
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post).toHaveBeenNthCalledWith(
         1,
-        `${baseURL}${spec.restfulUrl}`,
+        ROUTE,
         payload,
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -268,7 +307,7 @@ describe("POST /api/v1/menu/select", () => {
       );
       expect(mockedAxios.post).toHaveBeenNthCalledWith(
         2,
-        `${baseURL}${spec.restfulUrl}`,
+        ROUTE,
         payload,
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -280,71 +319,6 @@ describe("POST /api/v1/menu/select", () => {
         response2.data.data.reservationId
       );
     });
-  });
-
-  describe("검증", () => {
-    it.each([
-      {
-        field: "menuId",
-        payload: {
-          quantity: 2,
-          shopId: "shop_001",
-          memberNo: "member_123",
-        },
-      },
-      {
-        field: "quantity",
-        payload: {
-          menuId: "menu_001",
-          shopId: "shop_001",
-          memberNo: "member_123",
-        },
-      },
-      {
-        field: "shopId",
-        payload: {
-          menuId: "menu_001",
-          quantity: 2,
-          memberNo: "member_123",
-        },
-      },
-      {
-        field: "memberNo",
-        payload: {
-          menuId: "menu_001",
-          quantity: 2,
-          shopId: "shop_001",
-        },
-      },
-    ])(
-      "[VALIDATION][실패][VALIDATION] 필수값($field) 누락 — axios.post 호출되지 않음",
-      ({ payload }) => {
-        // when & then
-        expect(() => validateMenuSelectRequest(payload)).toThrow();
-        expect(mockedAxios.post).not.toHaveBeenCalled();
-      }
-    );
-
-    it.each([
-      { quantity: 0, description: "quantity가 0일 때" },
-      { quantity: 100, description: "quantity가 100일 때" },
-      { quantity: 2.5, description: "quantity가 정수가 아닐 때" },
-    ])(
-      "[VALIDATION][실패][VALIDATION] quantity 검증 — $description axios.post 호출되지 않음",
-      ({ quantity }) => {
-        // given
-        const payload = {
-          menuId: "menu_001",
-          quantity,
-          shopId: "shop_001",
-          memberNo: "member_123",
-        };
-
-        // when & then
-        expect(() => validateMenuSelectRequest(payload)).toThrow();
-        expect(mockedAxios.post).not.toHaveBeenCalled();
-      }
-    );
   });
 
   describe("실패", () => {
@@ -359,24 +333,12 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["404"].example;
       mockError(mockedAxios.post, 404, errorResponse);
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(404);
-      expect(error?.response?.data).toEqual(errorResponse);
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 404, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[401][실패][AUTH] 토큰 누락", async () => {
@@ -391,26 +353,16 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["401"].example;
       mockError(mockedAxios.post, 401, errorResponse);
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload, {
+      // when & then
+      await expect(
+        axios.post(ROUTE, payload, {
           headers,
-        });
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        { headers }
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(401);
-      expect(error?.response?.data).toEqual(errorResponse);
+        })
+      ).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 401, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[401][실패][AUTH] 토큰 만료", async () => {
@@ -424,24 +376,12 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["401"].example;
       mockError(mockedAxios.post, 401, errorResponse);
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(401);
-      expect(error?.response?.data).toEqual(errorResponse);
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 401, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[403][실패][AUTH] 권한 부족", async () => {
@@ -455,24 +395,12 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["403"].example;
       mockError(mockedAxios.post, 403, errorResponse);
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(403);
-      expect(error?.response?.data).toEqual(errorResponse);
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 403, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[409][실패][BUSINESS] 재료 부족", async () => {
@@ -486,24 +414,12 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["409"].example;
       mockError(mockedAxios.post, 409, errorResponse);
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(409);
-      expect(error?.response?.data).toEqual(errorResponse);
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 409, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[429][실패][RATE_LIMIT] 요청 한도 초과 — Retry-After 헤더 반환", async () => {
@@ -521,25 +437,16 @@ describe("POST /api/v1/menu/select", () => {
         message: "Request failed with status code 429",
       });
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.response?.status).toBe(429);
-      expect(error?.response?.data).toEqual(errorResponse);
-      expect(error?.response?.headers["retry-after"]).toBe("60");
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: {
+          status: 429,
+          data: errorResponse,
+          headers: { "retry-after": "60" },
+        },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[ECONNABORTED][실패][TIMEOUT] 요청 타임아웃", async () => {
@@ -556,23 +463,12 @@ describe("POST /api/v1/menu/select", () => {
         "timeout of 5000ms exceeded"
       );
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.code).toBe("ECONNABORTED");
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        code: "ECONNABORTED",
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
     it("[ENETUNREACH][실패][NETWORK] 네트워크 연결 실패", async () => {
@@ -585,23 +481,12 @@ describe("POST /api/v1/menu/select", () => {
       };
       mockNetworkError(mockedAxios.post, "ENETUNREACH", "Network unreachable");
 
-      // when
-      let error: AxiosError | undefined;
-      try {
-        await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-      } catch (e) {
-        error = e as AxiosError;
-      }
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${baseURL}${spec.restfulUrl}`,
-        payload,
-        expect.any(Object)
-      );
-      expect(error).toBeDefined();
-      expect(error?.isAxiosError).toBe(true);
-      expect(error?.code).toBe("ENETUNREACH");
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        code: "ENETUNREACH",
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
   });
 });

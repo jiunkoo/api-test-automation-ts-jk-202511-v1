@@ -205,6 +205,7 @@ export class HttpLogger {
   }
 
   logError(err: any, cfg?: AxiosRequestConfig) {
+    if (this.getLevel() !== "DEBUG") return;
     const info: Record<string, unknown> = this.base({
       message: err?.message,
       ...(err?.code ? { code: err.code } : {}),
