@@ -35,6 +35,28 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// 응답 스키마 정의
+const successResponseSchema = z.object({
+  status: z.literal("SUCCESS"),
+  message: z.string(),
+  timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
+  }),
+  data: z.object({
+    orderNo: z.string().regex(/^[A-Z0-9]{8}$/, {
+      message: "orderNo는 8자리 영숫자여야 합니다",
+    }),
+    orderStatus: z.literal("INITIALIZING"),
+    reservationId: z.string(),
+    createdAt: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "createdAt는 유효한 ISO 8601 형식이어야 합니다",
+    }),
+    memberInfo: z.object({
+      memberNo: z.string(),
+    }),
+  }),
+});
+
 const VALIDATION_ERRORS = {
   RESERVATION_ID_REQUIRED: "reservationId는 필수값입니다",
   MEMBER_NO_REQUIRED: "memberNo는 필수값입니다",
@@ -74,26 +96,6 @@ describe("POST /api/v1/order/create", () => {
       },
     };
     mockSuccess(mockedAxios.post, successResponse);
-    const successResponseSchema = z.object({
-      status: z.literal("SUCCESS"),
-      message: z.string(),
-      timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
-        message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
-      }),
-      data: z.object({
-        orderNo: z.string().regex(/^[A-Z0-9]{8}$/, {
-          message: "orderNo는 8자리 영숫자여야 합니다",
-        }),
-        orderStatus: z.literal("INITIALIZING"),
-        reservationId: z.string(),
-        createdAt: z.string().refine((val) => !isNaN(Date.parse(val)), {
-          message: "createdAt는 유효한 ISO 8601 형식이어야 합니다",
-        }),
-        memberInfo: z.object({
-          memberNo: z.string(),
-        }),
-      }),
-    });
 
     // when
     expect(() => validateOrderCreateRequest(payload)).not.toThrow();
@@ -287,27 +289,27 @@ describe("POST /api/v1/order/create", () => {
     expect(error?.response?.data).toEqual(errorResponse);
   });
 
-  it("[클라이언트 검증] reservationId 누락 시 axios.post 호출되지 않음", () => {
-    // given
-    const payload = {
-      memberNo: "member_123",
-    };
-
-    // when & then
-    expect(() => validateOrderCreateRequest(payload)).toThrow();
-    expect(mockedAxios.post).not.toHaveBeenCalled();
-  });
-
-  it("[클라이언트 검증] memberNo 누락 시 axios.post 호출되지 않음", () => {
-    // given
-    const payload = {
-      reservationId: "RSV_A7K9M2X8",
-    };
-
-    // when & then
-    expect(() => validateOrderCreateRequest(payload)).toThrow();
-    expect(mockedAxios.post).not.toHaveBeenCalled();
-  });
+  it.each([
+    {
+      field: "reservationId",
+      payload: {
+        memberNo: "member_123",
+      },
+    },
+    {
+      field: "memberNo",
+      payload: {
+        reservationId: "RSV_A7K9M2X8",
+      },
+    },
+  ])(
+    "[클라이언트 검증] $field 누락 시 axios.post 호출되지 않음",
+    ({ payload }) => {
+      // when & then
+      expect(() => validateOrderCreateRequest(payload)).toThrow();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    }
+  );
 
   it("[타임아웃] 요청 타임아웃 시 에러 처리", async () => {
     // given

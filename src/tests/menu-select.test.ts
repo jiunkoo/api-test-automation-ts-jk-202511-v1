@@ -35,6 +35,22 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+const successResponseSchema = z.object({
+  status: z.literal("SUCCESS"),
+  message: z.string(),
+  timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
+  }),
+  data: z.object({
+    reservationId: z.string(),
+    reservationExpiresAt: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "reservationExpiresAt는 유효한 ISO 8601 형식이어야 합니다",
+    }),
+    menuId: z.string(),
+    quantity: z.number().int().min(1).max(99),
+  }),
+});
+
 const VALIDATION_ERRORS = {
   MENU_ID_REQUIRED: "menuId는 필수값입니다",
   QUANTITY_REQUIRED: "quantity는 필수값입니다",
@@ -91,23 +107,6 @@ describe("POST /api/v1/menu/select", () => {
       },
     };
     mockSuccess(mockedAxios.post, successResponse);
-    const successResponseSchema = z.object({
-      status: z.literal("SUCCESS"),
-      message: z.string(),
-      timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
-        message: "timestamp는 유효한 ISO 8601 형식이어야 합니다",
-      }),
-      data: z.object({
-        reservationId: z.string(),
-        reservationExpiresAt: z
-          .string()
-          .refine((val) => !isNaN(Date.parse(val)), {
-            message: "reservationExpiresAt는 유효한 ISO 8601 형식이어야 합니다",
-          }),
-        menuId: z.string(),
-        quantity: z.number().int().min(1).max(99),
-      }),
-    });
 
     // when
     expect(() => validateMenuSelectRequest(payload)).not.toThrow();
@@ -166,103 +165,41 @@ describe("POST /api/v1/menu/select", () => {
     expect(error?.response?.data).toEqual(errorResponse);
   });
 
-  it("[400][실패] 잘못된 요청 - 필수값(menuId) 누락", async () => {
+  it.each([
+    {
+      field: "menuId",
+      payload: {
+        quantity: 2,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      },
+    },
+    {
+      field: "quantity",
+      payload: {
+        menuId: "menu_001",
+        shopId: "shop_001",
+        memberNo: "member_123",
+      },
+    },
+    {
+      field: "shopId",
+      payload: {
+        menuId: "menu_001",
+        quantity: 2,
+        memberNo: "member_123",
+      },
+    },
+    {
+      field: "memberNo",
+      payload: {
+        menuId: "menu_001",
+        quantity: 2,
+        shopId: "shop_001",
+      },
+    },
+  ])("[400][실패] 잘못된 요청 - 필수값($field) 누락", async ({ payload }) => {
     // given
-    const payload = {
-      quantity: 2,
-      shopId: "shop_001",
-      memberNo: "member_123",
-    };
-    const errorResponse = spec.responses["400"].example;
-    mockError(mockedAxios.post, 400, errorResponse);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      expect.any(Object)
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 잘못된 요청 - 필수값(quantity) 누락", async () => {
-    // given
-    const payload = {
-      menuId: "menu_001",
-      shopId: "shop_001",
-      memberNo: "member_123",
-    };
-    const errorResponse = spec.responses["400"].example;
-    mockError(mockedAxios.post, 400, errorResponse);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      expect.any(Object)
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 잘못된 요청 - 필수값(shopId) 누락", async () => {
-    // given
-    const payload = {
-      menuId: "menu_001",
-      quantity: 2,
-      memberNo: "member_123",
-    };
-    const errorResponse = spec.responses["400"].example;
-    mockError(mockedAxios.post, 400, errorResponse);
-
-    // when
-    let error: AxiosError | undefined;
-    try {
-      await axios.post(`${baseURL}${spec.restfulUrl}`, payload);
-    } catch (e) {
-      error = e as AxiosError;
-    }
-
-    // then
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      `${baseURL}${spec.restfulUrl}`,
-      payload,
-      expect.any(Object)
-    );
-    expect(error).toBeDefined();
-    expect(error?.isAxiosError).toBe(true);
-    expect(error?.response?.status).toBe(400);
-    expect(error?.response?.data).toEqual(errorResponse);
-  });
-
-  it("[400][실패] 잘못된 요청 - 필수값(memberNo) 누락", async () => {
-    // given
-    const payload = {
-      menuId: "menu_001",
-      quantity: 2,
-      shopId: "shop_001",
-    };
     const errorResponse = spec.responses["400"].example;
     mockError(mockedAxios.post, 400, errorResponse);
 
