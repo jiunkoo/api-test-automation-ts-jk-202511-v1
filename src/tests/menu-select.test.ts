@@ -118,39 +118,33 @@ describe("POST /api/v1/menu/select", () => {
           shopId: "shop_001",
         },
       },
-    ])(
-      "[실패][VALIDATION] 필수값($field) 누락 — axios.post 호출되지 않음",
-      ({ payload }) => {
-        // when & then
-        expect(() => validateMenuSelectRequest(payload)).toThrow();
-        expect(mockedAxios.post).not.toHaveBeenCalled();
-      }
-    );
+    ])("MS | PRE | 검증 | 필수값($field) 누락 — 요청 차단", ({ payload }) => {
+      // when & then
+      expect(() => validateMenuSelectRequest(payload)).toThrow();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
 
     it.each([
-      { quantity: 0, description: "quantity가 0일 때" },
-      { quantity: 100, description: "quantity가 100일 때" },
-      { quantity: 2.5, description: "quantity가 정수가 아닐 때" },
-    ])(
-      "[실패][VALIDATION] quantity 검증 — $description axios.post 호출되지 않음",
-      ({ quantity }) => {
-        // given
-        const payload = {
-          menuId: "menu_001",
-          quantity,
-          shopId: "shop_001",
-          memberNo: "member_123",
-        };
+      { quantity: 0, description: "quantity = 0" },
+      { quantity: 100, description: "quantity = 100" },
+      { quantity: 2.5, description: "quantity = 2.5" },
+    ])("MS | PRE | 검증 | $description — 요청 차단", ({ quantity }) => {
+      // given
+      const payload = {
+        menuId: "menu_001",
+        quantity,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
 
-        // when & then
-        expect(() => validateMenuSelectRequest(payload)).toThrow();
-        expect(mockedAxios.post).not.toHaveBeenCalled();
-      }
-    );
+      // when & then
+      expect(() => validateMenuSelectRequest(payload)).toThrow();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
   });
 
   describe("성공", () => {
-    it("[200][성공][BUSINESS] 메뉴 예약 완료 — 만료 시간 5분 검증", async () => {
+    it("MS | 200 | 성공 | 메뉴 예약 성공 — 예약 만료 5분", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -193,7 +187,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(diffMinutes).toBeCloseTo(5, 1);
     });
 
-    it("[200][성공][IDEMP] 동일 키 중복 요청 — 동일 reservationId 반환", async () => {
+    it("MS | 200 | 성공 | 멱등 (동일키/동일바디) — 동일 reservationId 반환", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -250,7 +244,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(response1.data.data.reservationId).toBe("RSV_A7K9M2X8");
     });
 
-    it("[200][성공][IDEMP] 다른 키 요청 — 다른 reservationId 반환", async () => {
+    it("MS | 200 | 성공 | 멱등 (다른키/다른바디) — 다른 reservationId 반환", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -322,26 +316,29 @@ describe("POST /api/v1/menu/select", () => {
   });
 
   describe("실패", () => {
-    it("[404][실패][BUSINESS] 존재하지 않는 메뉴", async () => {
+    it("MS | 400 | 실패 | Content-Type 오류", async () => {
       // given
-      const payload = {
-        menuId: "unknown_menu_id",
-        quantity: 2,
-        shopId: "shop_001",
-        memberNo: "member_123",
+      const invalidBody =
+        "menuId=menu_001&quantity=2&shopId=shop_001&memberNo=member_123";
+      const headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
       };
-      const errorResponse = spec.responses["404"].example;
-      mockError(mockedAxios.post, 404, errorResponse);
+      const errorResponse = spec.responses["400"].example;
+      mockError(mockedAxios.post, 400, errorResponse);
 
       // when & then
-      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+      await expect(
+        axios.post(ROUTE, invalidBody, {
+          headers,
+        })
+      ).rejects.toMatchObject({
         isAxiosError: true,
-        response: { status: 404, data: errorResponse },
+        response: { status: 400, data: errorResponse },
       });
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[401][실패][AUTH] 토큰 누락", async () => {
+    it("MS | 401 | 실패 | 토큰 누락", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -365,7 +362,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[401][실패][AUTH] 토큰 만료", async () => {
+    it("MS | 401 | 실패 | 토큰 만료", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -384,7 +381,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[403][실패][AUTH] 권한 부족", async () => {
+    it("MS | 403 | 실패 | 권한 부족", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -403,7 +400,26 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[409][실패][BUSINESS] 재료 부족", async () => {
+    it("MS | 404 | 실패 | 존재하지 않는 메뉴", async () => {
+      // given
+      const payload = {
+        menuId: "unknown_menu_id",
+        quantity: 2,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
+      const errorResponse = spec.responses["404"].example;
+      mockError(mockedAxios.post, 404, errorResponse);
+
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 404, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("MS | 409 | 실패 | 재료 부족", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -411,7 +427,8 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["409"].example;
+      const errorResponse =
+        spec.responses["409"].examples["INSUFFICIENT_INGREDIENTS"];
       mockError(mockedAxios.post, 409, errorResponse);
 
       // when & then
@@ -422,7 +439,69 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[429][실패][RATE_LIMIT] 요청 한도 초과 — Retry-After 헤더 반환", async () => {
+    it("MS | 409 | 실패 | 멱등 (동일키/다른바디)", async () => {
+      // given
+      const idempotencyKey = "idempotency-key-12345";
+      const headers = { "x-idempotency-key": idempotencyKey };
+
+      const payload1 = {
+        menuId: "menu_001",
+        quantity: 2,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
+      const payload2 = {
+        menuId: "menu_002",
+        quantity: 1,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
+
+      const successResponse = spec.responses["200"].example;
+      const conflictError = spec.responses["409"].examples["IDEMP_CONFLICT"];
+
+      mockSuccess(mockedAxios.post, successResponse);
+      mockError(mockedAxios.post, 409, conflictError, {
+        code: "ERR_BAD_RESPONSE",
+        message: "Request failed with status code 409",
+      });
+
+      // when & then (res1)
+      const res1 = await axios.post(ROUTE, payload1, { headers });
+      expect(res1.status).toBe(200);
+      expect(res1.data.data.reservationId).toBe("RSV_A7K9M2X8");
+
+      // when & then (res2)
+      await expect(
+        axios.post(ROUTE, payload2, { headers })
+      ).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 409, data: conflictError },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockedAxios.post).toHaveBeenNthCalledWith(
+        1,
+        ROUTE,
+        payload1,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "x-idempotency-key": idempotencyKey,
+          }),
+        })
+      );
+      expect(mockedAxios.post).toHaveBeenNthCalledWith(
+        2,
+        ROUTE,
+        payload2,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "x-idempotency-key": idempotencyKey,
+          }),
+        })
+      );
+    });
+
+    it("MS | 429 | 실패 | 요청 한도 초과 - Retry-After=60s 반환", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -433,8 +512,6 @@ describe("POST /api/v1/menu/select", () => {
       const errorResponse = spec.responses["429"].example;
       mockError(mockedAxios.post, 429, errorResponse, {
         headers: { "retry-after": "60" },
-        code: "ERR_BAD_RESPONSE",
-        message: "Request failed with status code 429",
       });
 
       // when & then
@@ -449,7 +526,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[ECONNABORTED][실패][TIMEOUT] 요청 타임아웃", async () => {
+    it("MS | ERR | 실패 | 요청 타임아웃", async () => {
       // given
       const payload = {
         menuId: "menu_001",
@@ -471,7 +548,7 @@ describe("POST /api/v1/menu/select", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[ENETUNREACH][실패][NETWORK] 네트워크 연결 실패", async () => {
+    it("MS | ERR | 실패 | 네트워크 연결 실패", async () => {
       // given
       const payload = {
         menuId: "menu_001",

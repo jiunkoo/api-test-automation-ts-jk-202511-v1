@@ -86,18 +86,15 @@ describe("POST /api/v1/order/create", () => {
           reservationId: "RSV_A7K9M2X8",
         },
       },
-    ])(
-      "[실패][VALIDATION] 필수값($field) 누락 — axios.post 호출되지 않음",
-      ({ payload }) => {
-        // when & then
-        expect(() => validateOrderCreateRequest(payload)).toThrow();
-        expect(mockedAxios.post).not.toHaveBeenCalled();
-      }
-    );
+    ])("OC | PRE | 검증 | 필수값($field) 누락 — 요청 차단", ({ payload }) => {
+      // when & then
+      expect(() => validateOrderCreateRequest(payload)).toThrow();
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
   });
 
   describe("성공", () => {
-    it("[200][성공][BUSINESS] 주문 생성 성공 — orderNo 형식 및 생성 시간 검증", async () => {
+    it("OC | 200 | 성공 | 주문 생성 성공", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
@@ -140,7 +137,7 @@ describe("POST /api/v1/order/create", () => {
       expect(diffSeconds).toBeLessThanOrEqual(1.5);
     });
 
-    it("[200][성공][FLOW] menu-select → order-create — 연속 호출 성공", async () => {
+    it("OC | 200 | 성공 | menu-select → order-create — 연속 호출 성공", async () => {
       // given
       const menuSelectSpec = apiSpec["POST_/api/v1/menu/select"];
       const menuSelectPayload = menuSelectSpec.requestBodyExample;
@@ -172,7 +169,7 @@ describe("POST /api/v1/order/create", () => {
       expect(orderCreateResult.data.data.reservationId).toBe(reservationId);
     });
 
-    it("[200][성공][IDEMP] 동일 키 중복 요청 — 동일 orderNo 반환", async () => {
+    it("OC | 200 | 성공 | 멱등 (동일키/동일바디) — 동일 orderNo 반환", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
@@ -217,79 +214,69 @@ describe("POST /api/v1/order/create", () => {
   });
 
   describe("실패", () => {
-    it("[400][실패][BUSINESS] 예약 만료 — 5분 초과", async () => {
+    it("OC | 400 | 실패 | Content-Type 오류", async () => {
       // given
-      const payload = {
-        reservationId: "RSV_A7K9M2X8",
-        memberNo: "member_123",
+      const invalidBody = "reservationId=RSV_A7K9M2X8&memberNo=member_123";
+      const headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
       };
-      const errorResponse = {
-        ...spec.responses["400"].example,
-        errorCode: "RESERVATION_EXPIRED",
-      };
+      const errorResponse = spec.responses["400"].example;
       mockError(mockedAxios.post, 400, errorResponse);
 
       // when & then
-      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+      await expect(
+        axios.post(ROUTE, invalidBody, {
+          headers,
+        })
+      ).rejects.toMatchObject({
         isAxiosError: true,
         response: { status: 400, data: errorResponse },
       });
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[400][실패][BUSINESS] 유효하지 않은 예약", async () => {
+    it("OC | 422 | 실패 | 예약 만료 (5분 초과)", async () => {
+      // given
+      const payload = {
+        reservationId: "RSV_A7K9M2X8",
+        memberNo: "member_123",
+      };
+      const errorResponse = spec.responses["422"].example;
+      mockError(mockedAxios.post, 422, errorResponse);
+
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 422, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("OC | 404 | 실패 | 유효하지 않은 예약", async () => {
       // given
       const payload = {
         reservationId: "unknown_reservation_id",
         memberNo: "member_123",
       };
-      const errorResponse = {
-        ...spec.responses["400"].example,
-        errorCode: "INVALID_RESERVATION",
-      };
-      mockError(mockedAxios.post, 400, errorResponse);
+      const errorResponse = spec.responses["404"].example;
+      mockError(mockedAxios.post, 404, errorResponse);
 
       // when & then
       await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
         isAxiosError: true,
-        response: { status: 400, data: errorResponse },
+        response: { status: 404, data: errorResponse },
       });
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[400][실패][BUSINESS] 중복 주문 방지 — 같은 reservationId 재사용 거부", async () => {
+    it("OC | 409 | 실패 | 예약 후 재료 소진", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
         memberNo: "member_123",
       };
-      const successResponse = spec.responses["200"].example;
-      const errorResponse = {
-        ...spec.responses["400"].example,
-        errorCode: "INVALID_RESERVATION",
-      };
-      mockSuccess(mockedAxios.post, successResponse);
-      mockError(mockedAxios.post, 400, errorResponse);
-
-      // when
-      const firstResponse = await axios.post(ROUTE, payload);
-      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
-        isAxiosError: true,
-        response: { status: 400, data: errorResponse },
-      });
-
-      // then
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
-      expect(firstResponse.status).toBe(200);
-    });
-
-    it("[409][실패][BUSINESS] 예약 후 재료 소진", async () => {
-      // given
-      const payload = {
-        reservationId: "RSV_A7K9M2X8",
-        memberNo: "member_123",
-      };
-      const errorResponse = spec.responses["409"].example;
+      const errorResponse =
+        spec.responses["409"].examples["INGREDIENTS_EXHAUSTED"];
       mockError(mockedAxios.post, 409, errorResponse);
 
       // when & then
@@ -300,7 +287,30 @@ describe("POST /api/v1/order/create", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[409][실패][IDEMP] 같은 키 다른 바디 요청 — IDEMP_CONFLICT", async () => {
+    it("OC | 409 | 실패 | 중복 주문  - reservationId 재사용", async () => {
+      // given
+      const payload = {
+        reservationId: "RSV_A7K9M2X8",
+        memberNo: "member_123",
+      };
+      const successResponse = spec.responses["200"].example;
+      const errorResponse = spec.responses["409"].examples["DUPLICATE_ORDER"];
+      mockSuccess(mockedAxios.post, successResponse);
+      mockError(mockedAxios.post, 409, errorResponse);
+
+      // when
+      const firstResponse = await axios.post(ROUTE, payload);
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 409, data: errorResponse },
+      });
+
+      // then
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(firstResponse.status).toBe(200);
+    });
+
+    it("OC | 409 | 실패 | 멱등 (동일키/다른바디)", async () => {
       // given
       const payload1 = {
         reservationId: "RSV_A7K9M2X8",
@@ -315,12 +325,7 @@ describe("POST /api/v1/order/create", () => {
         "x-idempotency-key": idempotencyKey,
       };
       const successResponse = spec.responses["200"].example;
-      const errorResponse = {
-        status: "ERROR",
-        message: "같은 Idempotency-Key로 다른 요청 본문이 전송되었습니다",
-        errorCode: "IDEMP_CONFLICT",
-        timestamp: "2025-08-07T12:30:00.123Z",
-      };
+      const errorResponse = spec.responses["409"].examples["IDEMP_CONFLICT"];
       mockSuccess(mockedAxios.post, successResponse);
       mockError(mockedAxios.post, 409, errorResponse, {
         code: "ERR_BAD_RESPONSE",
@@ -343,7 +348,7 @@ describe("POST /api/v1/order/create", () => {
       expect(response1.data.data.orderNo).toBe("R7X9K2M8");
     });
 
-    it("[429][실패][RATE_LIMIT] 요청 한도 초과 — Retry-After 헤더 반환", async () => {
+    it("OC | 429 | 실패 | 요청 한도 초과 - Retry-After=60s 반환", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
@@ -352,8 +357,6 @@ describe("POST /api/v1/order/create", () => {
       const errorResponse = spec.responses["429"].example;
       mockError(mockedAxios.post, 429, errorResponse, {
         headers: { "retry-after": "60" },
-        code: "ERR_BAD_RESPONSE",
-        message: "Request failed with status code 429",
       });
 
       // when & then
@@ -368,7 +371,7 @@ describe("POST /api/v1/order/create", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[ECONNABORTED][실패][TIMEOUT] 요청 타임아웃", async () => {
+    it("OC | ERR | 실패 | 요청 타임아웃", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
@@ -388,7 +391,7 @@ describe("POST /api/v1/order/create", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
-    it("[ENETUNREACH][실패][NETWORK] 네트워크 연결 실패", async () => {
+    it("OC | ERR | 실패 | 네트워크 연결 실패", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
