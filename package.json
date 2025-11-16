@@ -16,6 +16,7 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "@vitest/coverage-v8": "^4.0.8",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.8",
