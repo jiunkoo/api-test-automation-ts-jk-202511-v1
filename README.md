@@ -73,5 +73,5 @@ npx vitest run -t "테스트 케이스 이름"
 
 ## 3. 추가 문서
 
-- **테스트 케이스 목록 및 설계 의도**: [API Test Case Specification](./docs/Api%20Test%20Case%20Specification.md)
-- **테스트 아키텍처 설명 및 다이어그램**: [Test Architecture Overview](./docs/Test%20Architecture%20Overview.md)
+- **테스트 케이스 목록 및 설계 의도**: [API Test Case Specification](./docs/Api_Test_Case_Specification.md)
+- **테스트 아키텍처 설명 및 다이어그램**: [Test Architecture Overview](./docs/Test_Architecture_Overview.md)
