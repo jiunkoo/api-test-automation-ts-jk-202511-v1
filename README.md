@@ -1,5 +1,9 @@
 ![CI](https://github.com/jiunkoo/api-test-automation-ts-jk-202511-v1/actions/workflows/ci-api-tests.yml/badge.svg)
 
+## 개요
+
+이 프로젝트는 Vitest+TypeScript와 axios 모킹을 사용해 `src/data/api-spec.json`(SSOT)을 근거로 사전 검증→성공→실패 흐름에서 멱등성·에러코드·비즈니스 규칙까지 포함한 REST API 동작을 자동 검증하는 테스트 스위트입니다.
+
 ## 1. 환경설정
 
 - **Node.js**: LTS 버전 권장 (예: 18.x 이상)
