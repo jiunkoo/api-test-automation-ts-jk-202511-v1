@@ -1,3 +1,5 @@
+![CI](https://github.com/jiunkoo/api-test-automation-ts-jk-202511-v1/actions/workflows/ci-api-tests.yml/badge.svg)
+
 ## 1. 환경설정
 
 - **Node.js**: LTS 버전 권장 (예: 18.x 이상)
