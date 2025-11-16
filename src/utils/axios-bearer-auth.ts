@@ -118,7 +118,7 @@ export const installAxiosAuthAutoWrap = () => {
 };
 
 const AUTH_AUTOWRAP =
-  String(process.env.AUTH_AUTOWRAP ?? "true").toLowerCase() !== "false";
+  String(process.env.AUTH_AUTOWRAP ?? "false").toLowerCase() === "true";
 (() => {
   const isVitest = !!(globalThis as any).vi;
   if (isVitest && AUTH_AUTOWRAP) installAxiosAuthAutoWrap();

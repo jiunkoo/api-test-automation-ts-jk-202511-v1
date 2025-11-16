@@ -362,7 +362,7 @@ export const installLoggerAutoWrap = () => {
 };
 
 const LOG_AUTOWRAP =
-  String(process.env.LOG_AUTOWRAP ?? "true").toLowerCase() !== "false";
+  String(process.env.LOG_AUTOWRAP ?? "false").toLowerCase() === "true";
 (() => {
   const isVitest = !!(globalThis as any).vi;
   if (isVitest && LOG_AUTOWRAP) installLoggerAutoWrap();
