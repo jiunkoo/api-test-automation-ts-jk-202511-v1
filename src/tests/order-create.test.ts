@@ -32,7 +32,6 @@ beforeEach(() => {
 
 const ROUTE = `${baseURL!}${spec.restfulUrl}`;
 
-// 응답 스키마 정의
 const successResponseSchema = z.object({
   status: z.literal("SUCCESS"),
   message: z.string(),
@@ -53,6 +52,20 @@ const successResponseSchema = z.object({
     }),
   }),
 });
+
+const buildErrorResponseFromCode = (errorCode: string) => {
+  const errorDef = spec.errorCodes.find((e) => e.ErrorCode === errorCode);
+  if (!errorDef) {
+    throw new Error(`API 스펙에 ${errorCode} 에러 정의가 필요합니다.`);
+  }
+
+  return {
+    status: "ERROR" as const,
+    message: errorDef.Description,
+    errorCode: errorDef.ErrorCode,
+    timestamp: "2025-08-07T12:30:00.123Z",
+  };
+};
 
 const VALIDATION_ERRORS = {
   RESERVATION_ID_REQUIRED: "reservationId는 필수값입니다",
@@ -140,8 +153,23 @@ describe("POST /api/v1/order/create", () => {
     it("OC | 200 | 성공 | menu-select → order-create — 연속 호출 성공", async () => {
       // given
       const menuSelectSpec = apiSpec["POST_/api/v1/menu/select"];
-      const menuSelectPayload = menuSelectSpec.requestBodyExample;
-      const menuSelectResponse = menuSelectSpec.responses["200"].example;
+      const menuSelectPayload = {
+        menuId: "menu_001",
+        quantity: 2,
+        shopId: "shop_001",
+        memberNo: "member_123",
+      };
+      const menuSelectResponse = {
+        status: "SUCCESS",
+        message: "메뉴 예약이 완료되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          reservationId: "RSV_A7K9M2X8",
+          reservationExpiresAt: "2025-08-07T12:35:00.123Z",
+          menuId: "menu_001",
+          quantity: 2,
+        },
+      };
       mockSuccess(mockedAxios.post, menuSelectResponse);
 
       // when
@@ -156,7 +184,20 @@ describe("POST /api/v1/order/create", () => {
         reservationId,
         memberNo: menuSelectPayload.memberNo,
       };
-      const orderCreateResponse = spec.responses["200"].example;
+      const orderCreateResponse = {
+        status: "SUCCESS",
+        message: "주문이 성공적으로 생성되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          orderNo: "R7X9K2M8",
+          orderStatus: "INITIALIZING",
+          reservationId,
+          createdAt: "2025-08-07T12:30:00.123Z",
+          memberInfo: {
+            memberNo: "member_123",
+          },
+        },
+      };
       mockSuccess(mockedAxios.post, orderCreateResponse);
 
       // when
@@ -179,7 +220,20 @@ describe("POST /api/v1/order/create", () => {
       const headers = {
         "x-idempotency-key": idempotencyKey,
       };
-      const successResponse = spec.responses["200"].example;
+      const successResponse = {
+        status: "SUCCESS",
+        message: "주문이 성공적으로 생성되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          orderNo: "R7X9K2M8",
+          orderStatus: "INITIALIZING",
+          reservationId: "RSV_A7K9M2X8",
+          createdAt: "2025-08-07T12:30:00.123Z",
+          memberInfo: {
+            memberNo: "member_123",
+          },
+        },
+      };
       mockSuccess(mockedAxios.post, successResponse, true);
 
       // when
@@ -220,7 +274,7 @@ describe("POST /api/v1/order/create", () => {
       const headers = {
         "Content-Type": "application/x-www-form-urlencoded",
       };
-      const errorResponse = spec.responses["400"].example;
+      const errorResponse = buildErrorResponseFromCode("INVALID_REQUEST");
       mockError(mockedAxios.post, 400, errorResponse);
 
       // when & then
@@ -235,13 +289,69 @@ describe("POST /api/v1/order/create", () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
+    it("OC | 401 | 실패 | 토큰 누락", async () => {
+      // given
+      const payload = {
+        reservationId: "RSV_A7K9M2X8",
+        memberNo: "member_123",
+      };
+      const headers = { "x-skip-auth": true };
+      const errorResponse = buildErrorResponseFromCode("UNAUTHORIZED");
+      mockError(mockedAxios.post, 401, errorResponse);
+
+      // when & then
+      await expect(
+        axios.post(ROUTE, payload, {
+          headers,
+        })
+      ).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 401, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("OC | 401 | 실패 | 토큰 만료", async () => {
+      // given
+      const payload = {
+        reservationId: "RSV_A7K9M2X8",
+        memberNo: "member_123",
+      };
+      const errorResponse = buildErrorResponseFromCode("UNAUTHORIZED");
+      mockError(mockedAxios.post, 401, errorResponse);
+
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 401, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("OC | 403 | 실패 | 권한 부족", async () => {
+      // given
+      const payload = {
+        reservationId: "RSV_A7K9M2X8",
+        memberNo: "member_123",
+      };
+      const errorResponse = buildErrorResponseFromCode("FORBIDDEN");
+      mockError(mockedAxios.post, 403, errorResponse);
+
+      // when & then
+      await expect(axios.post(ROUTE, payload)).rejects.toMatchObject({
+        isAxiosError: true,
+        response: { status: 403, data: errorResponse },
+      });
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
     it("OC | 422 | 실패 | 예약 만료 (5분 초과)", async () => {
       // given
       const payload = {
         reservationId: "RSV_A7K9M2X8",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["422"].example;
+      const errorResponse = buildErrorResponseFromCode("RESERVATION_EXPIRED");
       mockError(mockedAxios.post, 422, errorResponse);
 
       // when & then
@@ -258,7 +368,7 @@ describe("POST /api/v1/order/create", () => {
         reservationId: "unknown_reservation_id",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["404"].example;
+      const errorResponse = buildErrorResponseFromCode("INVALID_RESERVATION");
       mockError(mockedAxios.post, 404, errorResponse);
 
       // when & then
@@ -275,8 +385,12 @@ describe("POST /api/v1/order/create", () => {
         reservationId: "RSV_A7K9M2X8",
         memberNo: "member_123",
       };
-      const errorResponse =
-        spec.responses["409"].examples["INGREDIENTS_EXHAUSTED"];
+      const errorResponse = {
+        status: "ERROR",
+        message: "예약 후 재료가 소진되었습니다",
+        errorCode: "INGREDIENTS_EXHAUSTED",
+        timestamp: "2025-08-07T12:35:00.123Z",
+      };
       mockError(mockedAxios.post, 409, errorResponse);
 
       // when & then
@@ -293,8 +407,21 @@ describe("POST /api/v1/order/create", () => {
         reservationId: "RSV_A7K9M2X8",
         memberNo: "member_123",
       };
-      const successResponse = spec.responses["200"].example;
-      const errorResponse = spec.responses["409"].examples["DUPLICATE_ORDER"];
+      const successResponse = {
+        status: "SUCCESS",
+        message: "주문이 성공적으로 생성되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          orderNo: "R7X9K2M8",
+          orderStatus: "INITIALIZING",
+          reservationId: "RSV_A7K9M2X8",
+          createdAt: "2025-08-07T12:30:00.123Z",
+          memberInfo: {
+            memberNo: "member_123",
+          },
+        },
+      };
+      const errorResponse = buildErrorResponseFromCode("DUPLICATE_ORDER");
       mockSuccess(mockedAxios.post, successResponse);
       mockError(mockedAxios.post, 409, errorResponse);
 
@@ -324,8 +451,21 @@ describe("POST /api/v1/order/create", () => {
       const headers = {
         "x-idempotency-key": idempotencyKey,
       };
-      const successResponse = spec.responses["200"].example;
-      const errorResponse = spec.responses["409"].examples["IDEMP_CONFLICT"];
+      const successResponse = {
+        status: "SUCCESS",
+        message: "주문이 성공적으로 생성되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          orderNo: "R7X9K2M8",
+          orderStatus: "INITIALIZING",
+          reservationId: "RSV_A7K9M2X8",
+          createdAt: "2025-08-07T12:30:00.123Z",
+          memberInfo: {
+            memberNo: "member_123",
+          },
+        },
+      };
+      const errorResponse = buildErrorResponseFromCode("IDEMP_CONFLICT");
       mockSuccess(mockedAxios.post, successResponse);
       mockError(mockedAxios.post, 409, errorResponse, {
         code: "ERR_BAD_RESPONSE",
@@ -354,7 +494,7 @@ describe("POST /api/v1/order/create", () => {
         reservationId: "RSV_A7K9M2X8",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["429"].example;
+      const errorResponse = buildErrorResponseFromCode("RATE_LIMIT_EXCEEDED");
       mockError(mockedAxios.post, 429, errorResponse, {
         headers: { "retry-after": "60" },
       });

@@ -48,6 +48,20 @@ const successResponseSchema = z.object({
   }),
 });
 
+const buildErrorResponseFromCode = (errorCode: string) => {
+  const errorDef = spec.errorCodes.find((e) => e.ErrorCode === errorCode);
+  if (!errorDef) {
+    throw new Error(`API 스펙에 ${errorCode} 에러 정의가 필요합니다.`);
+  }
+
+  return {
+    status: "ERROR" as const,
+    message: errorDef.Description,
+    errorCode: errorDef.ErrorCode,
+    timestamp: "2025-08-07T12:30:00.123Z",
+  };
+};
+
 const VALIDATION_ERRORS = {
   MENU_ID_REQUIRED: "menuId는 필수값입니다",
   QUANTITY_REQUIRED: "quantity는 필수값입니다",
@@ -323,7 +337,7 @@ describe("POST /api/v1/menu/select", () => {
       const headers = {
         "Content-Type": "application/x-www-form-urlencoded",
       };
-      const errorResponse = spec.responses["400"].example;
+      const errorResponse = buildErrorResponseFromCode("INVALID_REQUEST");
       mockError(mockedAxios.post, 400, errorResponse);
 
       // when & then
@@ -347,7 +361,7 @@ describe("POST /api/v1/menu/select", () => {
         memberNo: "member_123",
       };
       const headers = { "x-skip-auth": true };
-      const errorResponse = spec.responses["401"].example;
+      const errorResponse = buildErrorResponseFromCode("UNAUTHORIZED");
       mockError(mockedAxios.post, 401, errorResponse);
 
       // when & then
@@ -370,7 +384,7 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["401"].example;
+      const errorResponse = buildErrorResponseFromCode("UNAUTHORIZED");
       mockError(mockedAxios.post, 401, errorResponse);
 
       // when & then
@@ -389,7 +403,7 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["403"].example;
+      const errorResponse = buildErrorResponseFromCode("FORBIDDEN");
       mockError(mockedAxios.post, 403, errorResponse);
 
       // when & then
@@ -408,7 +422,7 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["404"].example;
+      const errorResponse = buildErrorResponseFromCode("MENU_NOT_FOUND");
       mockError(mockedAxios.post, 404, errorResponse);
 
       // when & then
@@ -427,8 +441,12 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse =
-        spec.responses["409"].examples["INSUFFICIENT_INGREDIENTS"];
+      const errorResponse = {
+        status: "ERROR",
+        message: "주문하신 수량만큼 재료가 부족합니다",
+        errorCode: "INSUFFICIENT_INGREDIENTS",
+        timestamp: "2025-08-07T12:30:00.123Z",
+      };
       mockError(mockedAxios.post, 409, errorResponse);
 
       // when & then
@@ -457,8 +475,18 @@ describe("POST /api/v1/menu/select", () => {
         memberNo: "member_123",
       };
 
-      const successResponse = spec.responses["200"].example;
-      const conflictError = spec.responses["409"].examples["IDEMP_CONFLICT"];
+      const successResponse = {
+        status: "SUCCESS",
+        message: "메뉴 예약이 완료되었습니다",
+        timestamp: "2025-08-07T12:30:00.123Z",
+        data: {
+          reservationId: "RSV_A7K9M2X8",
+          reservationExpiresAt: "2025-08-07T12:35:00.123Z",
+          menuId: "menu_001",
+          quantity: 2,
+        },
+      };
+      const conflictError = buildErrorResponseFromCode("IDEMP_CONFLICT");
 
       mockSuccess(mockedAxios.post, successResponse);
       mockError(mockedAxios.post, 409, conflictError, {
@@ -509,7 +537,7 @@ describe("POST /api/v1/menu/select", () => {
         shopId: "shop_001",
         memberNo: "member_123",
       };
-      const errorResponse = spec.responses["429"].example;
+      const errorResponse = buildErrorResponseFromCode("RATE_LIMIT_EXCEEDED");
       mockError(mockedAxios.post, 429, errorResponse, {
         headers: { "retry-after": "60" },
       });
